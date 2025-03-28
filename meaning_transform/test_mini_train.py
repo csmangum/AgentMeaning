@@ -14,8 +14,12 @@ from src.train import Trainer
 config = Config()
 config.experiment_name = "metrics_test"
 config.training.num_epochs = 1
-config.training.batch_size = 5
-config.data.num_states = 20
+config.training.batch_size = 8  # Increase batch size
+config.data.num_states = 32  # Increase number of states
+# Fix the input dimension to match the actual data dimension (15)
+config.model.input_dim = 15  
+# Modify encoder and decoder to not use batch normalization for this test
+config.model.use_batch_norm = False  
 config.debug = True
 config.verbose = True
 

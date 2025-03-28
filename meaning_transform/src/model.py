@@ -21,7 +21,7 @@ import numpy as np
 class Encoder(nn.Module):
     """Encoder network that maps agent states to latent representations."""
     
-    def __init__(self, input_dim: int, latent_dim: int, hidden_dims: List[int] = None):
+    def __init__(self, input_dim: int, latent_dim: int, hidden_dims: List[int] = None, use_batch_norm: bool = True):
         """
         Initialize encoder network.
         
@@ -29,23 +29,31 @@ class Encoder(nn.Module):
             input_dim: Dimension of input agent state
             latent_dim: Dimension of latent space
             hidden_dims: List of hidden layer dimensions
+            use_batch_norm: Whether to use batch normalization
         """
         super().__init__()
         
         self.input_dim = input_dim
         self.latent_dim = latent_dim
         self.hidden_dims = hidden_dims or [256, 128, 64]
+        self.use_batch_norm = use_batch_norm
         
         # Build encoder architecture
         modules = []
         in_dim = input_dim
         
         for h_dim in self.hidden_dims:
-            modules.append(nn.Sequential(
-                nn.Linear(in_dim, h_dim),
-                nn.BatchNorm1d(h_dim),
-                nn.LeakyReLU()
-            ))
+            if self.use_batch_norm:
+                modules.append(nn.Sequential(
+                    nn.Linear(in_dim, h_dim),
+                    nn.BatchNorm1d(h_dim),
+                    nn.LeakyReLU()
+                ))
+            else:
+                modules.append(nn.Sequential(
+                    nn.Linear(in_dim, h_dim),
+                    nn.LeakyReLU()
+                ))
             in_dim = h_dim
         
         self.encoder = nn.Sequential(*modules)
@@ -73,7 +81,7 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     """Decoder network that maps latent representations back to agent states."""
     
-    def __init__(self, latent_dim: int, output_dim: int, hidden_dims: List[int] = None):
+    def __init__(self, latent_dim: int, output_dim: int, hidden_dims: List[int] = None, use_batch_norm: bool = True):
         """
         Initialize decoder network.
         
@@ -81,23 +89,31 @@ class Decoder(nn.Module):
             latent_dim: Dimension of latent space
             output_dim: Dimension of output agent state
             hidden_dims: List of hidden layer dimensions (in reverse order from encoder)
+            use_batch_norm: Whether to use batch normalization
         """
         super().__init__()
         
         self.latent_dim = latent_dim
         self.output_dim = output_dim
         self.hidden_dims = hidden_dims or [64, 128, 256]
+        self.use_batch_norm = use_batch_norm
         
         # Build decoder architecture
         modules = []
         in_dim = latent_dim
         
         for h_dim in self.hidden_dims:
-            modules.append(nn.Sequential(
-                nn.Linear(in_dim, h_dim),
-                nn.BatchNorm1d(h_dim),
-                nn.LeakyReLU()
-            ))
+            if self.use_batch_norm:
+                modules.append(nn.Sequential(
+                    nn.Linear(in_dim, h_dim),
+                    nn.BatchNorm1d(h_dim),
+                    nn.LeakyReLU()
+                ))
+            else:
+                modules.append(nn.Sequential(
+                    nn.Linear(in_dim, h_dim),
+                    nn.LeakyReLU()
+                ))
             in_dim = h_dim
         
         self.decoder = nn.Sequential(*modules)
@@ -257,7 +273,8 @@ class MeaningVAE(nn.Module):
         latent_dim: int,
         compression_type: str = "entropy",
         compression_level: float = 1.0,
-        vq_num_embeddings: int = 512
+        vq_num_embeddings: int = 512,
+        use_batch_norm: bool = True
     ):
         """
         Initialize VAE model.
@@ -266,8 +283,9 @@ class MeaningVAE(nn.Module):
             input_dim: Dimension of input agent state
             latent_dim: Dimension of latent space
             compression_type: Type of compression ("entropy" or "vq")
-            compression_level: Level of compression
-            vq_num_embeddings: Number of embeddings for vector quantization
+            compression_level: Level of compression (higher = more compression)
+            vq_num_embeddings: Number of embedding vectors for VQ
+            use_batch_norm: Whether to use batch normalization
         """
         super().__init__()
         
@@ -275,11 +293,11 @@ class MeaningVAE(nn.Module):
         self.latent_dim = latent_dim
         self.compression_type = compression_type
         
-        # Initialize encoder and decoder
-        self.encoder = Encoder(input_dim, latent_dim)
-        self.decoder = Decoder(latent_dim, input_dim)
+        # Create encoder and decoder
+        self.encoder = Encoder(input_dim, latent_dim, use_batch_norm=use_batch_norm)
+        self.decoder = Decoder(latent_dim, input_dim, use_batch_norm=use_batch_norm)
         
-        # Initialize compression mechanism
+        # Create compression mechanism
         if compression_type == "entropy":
             self.compressor = EntropyBottleneck(latent_dim, compression_level)
         elif compression_type == "vq":

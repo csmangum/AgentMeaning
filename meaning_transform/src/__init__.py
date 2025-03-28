@@ -1,0 +1,1 @@
+"""Core model implementation for the meaning-preserving transformation system.""" 

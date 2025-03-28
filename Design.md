@@ -1,6 +1,6 @@
 # **System Design Overview**
 
-Our system is built not as a linear data pipeline, but as a **closed-loop transformation mechanism**, where structured agent states can be encoded, abstracted, compressed, and then regenerated—all while preserving their functional and semantic integrity.
+Our system is built not as a linear data pipeline, but as a **closed-loop transformation mechanism**—a living compression ecology where structured agent states can be encoded, abstracted, compressed, and then regenerated—all while preserving their functional and semantic integrity.
 
 Each layer of this system plays the role of an **algorithmic organ**: a specialized component that transforms the representation of the agent state, passing it along to the next, until the full cycle completes. Together, these transformations form a **representational arc**—from symbolic form to geometric abstraction, to minimal essence, and back to symbol again.
 
@@ -95,7 +95,7 @@ Each module in the pipeline corresponds to a distinct transformation function an
 - **Components:**
   - **Reconstruction Loss:** Between original and decoded binary.
   - **KL Divergence / Entropy Loss:** Forces compression pressure on latent.
-  - **Semantic Loss (optional):** Compares behavior or structure in the original and reconstructed agent state.
+  - **Semantic Loss:** Compares key features (position, health, energy, role, etc.) between original and reconstructed states.
 
 - **Metaphor:** The **nervous system**—detecting pain, signaling misalignment, guiding correction.
 
@@ -105,7 +105,7 @@ Each module in the pipeline corresponds to a distinct transformation function an
 
 The system is trained end-to-end using the total loss signal, allowing all parts—from serialization to compression—to align their representations in service of **semantic preservation**.
 
-This architecture is not static. It is a **learning organism**, adjusting each organ’s function so that information can move through any form without losing its soul.
+This architecture is not static. It is a **learning organism**, adjusting each organ's function so that information can move through any form without losing its soul.
 
 ---
 

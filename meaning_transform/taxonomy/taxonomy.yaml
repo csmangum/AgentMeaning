@@ -1,0 +1,93 @@
+# Taxonomy of Meaning-Preserving Transformations
+# This file defines a schema for classifying different types of transformations
+# and their effects on semantic meaning.
+
+version: 0.1.0
+
+# Core transformation types
+transformation_types:
+  - id: identity
+    name: Identity Transformation
+    description: Transformation that preserves the original state exactly
+    preserves_structure: true
+    preserves_semantics: true
+    
+  - id: structural
+    name: Structural Transformation
+    description: Transformation that changes structure but preserves meaning
+    preserves_structure: false
+    preserves_semantics: true
+    subtypes:
+      - id: rearrangement
+        name: Rearrangement
+        description: Reordering of elements without changing their values
+      - id: normalization
+        name: Normalization
+        description: Standardizing value ranges without changing relative meanings
+      - id: dimensional_reduction
+        name: Dimensional Reduction
+        description: Reducing dimensionality while preserving key relationships
+  
+  - id: semantic
+    name: Semantic Transformation
+    description: Transformation that preserves core meaning but allows structural changes
+    preserves_structure: false
+    preserves_semantics: true
+    subtypes:
+      - id: abstraction
+        name: Abstraction
+        description: Moving to a higher level of conceptual abstraction
+      - id: concretization
+        name: Concretization
+        description: Moving to a more specific representation
+      - id: translation
+        name: Translation
+        description: Converting between equivalent representations
+  
+  - id: lossy
+    name: Lossy Transformation
+    description: Transformation that loses some information but preserves core meaning
+    preserves_structure: false
+    preserves_semantics: partial
+    subtypes:
+      - id: compression
+        name: Compression
+        description: Reducing information size while preserving essential meaning
+      - id: summarization
+        name: Summarization
+        description: Preserving key elements while discarding details
+      - id: quantization
+        name: Quantization
+        description: Reducing precision of values
+
+# Meaning preservation metrics
+preservation_metrics:
+  - id: structural_similarity
+    name: Structural Similarity
+    description: Measure of how well structural relationships are preserved
+    
+  - id: semantic_equivalence
+    name: Semantic Equivalence
+    description: Measure of how well semantic meaning is preserved
+    
+  - id: behavioral_equivalence
+    name: Behavioral Equivalence
+    description: Measure of how well agent behavior is preserved
+    
+  - id: information_retention
+    name: Information Retention
+    description: Measure of how much original information is retained
+
+# Drift tracking dimensions
+drift_dimensions:
+  - id: latent_drift
+    name: Latent Space Drift
+    description: Measure of drift in the latent representation
+    
+  - id: semantic_drift
+    name: Semantic Drift
+    description: Measure of drift in semantic meaning
+    
+  - id: behavioral_drift
+    name: Behavioral Drift
+    description: Measure of drift in agent behavior 

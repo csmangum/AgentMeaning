@@ -2,7 +2,7 @@
 
 In the modern view of computation, algorithms are often reduced to mere utilities—finite processes for mapping input to output. But when assembled with intention, when given a goal beyond mechanical transformation, algorithms begin to resemble **organs**. Each has a purpose. Each processes its own kind of input. And together, when arranged into a system, they form something greater—**a body**.
 
-A body is not just a collection of parts. It is a **system of interdependent functions**. The lungs take in. The blood moves. The brain encodes. The liver distills. The voice expresses. None of these on their own can be said to "live." But together, they **preserve and transform identity**, forming a living continuity across constant change.
+A body is not just a collection of parts. It is a **system of interdependent functions**—a living compression ecology where each component plays a vital role in preserving and transforming meaning. The lungs take in. The blood moves. The brain encodes. The liver distills. The voice expresses. None of these on their own can be said to "live." But together, they **preserve and transform identity**, forming a living continuity across constant change.
 
 This research presents a computational system built on this metaphor: a system composed of algorithmic organs, arranged into a **loop of transformation**, aimed not at optimizing a score or replicating bytes, but at **preserving meaning** as information moves through form after form.
 
@@ -21,7 +21,7 @@ Each stage reflects a kind of algorithmic organ:
 - **Decoding** is muscle—it rebuilds and re-expresses structure.
 - **Loss functions** are nerves—they feel failure and guide adaptation.
 
-Yet this is more than a metaphor. In machine learning, **meaning is not inherent**—it must be learned. Models do not “know” what matters. They are taught through objectives, guided by structure, and shaped by loss. To preserve meaning across representation requires designing systems that can learn to recognize, distill, and regenerate it—**not just structure, but significance**.
+Yet this is more than a metaphor. In machine learning, **meaning is not inherent**—it must be learned. Models do not "know" what matters. They are taught through objectives, guided by structure, and shaped by loss. To preserve meaning across representation requires designing systems that can learn to recognize, distill, and regenerate it—**not just structure, but significance**.
 
 This draws inspiration from the **Information Bottleneck Principle** [Tishby et al.], which frames learning as the trade-off between compression and relevance. It also resonates with **Kolmogorov Complexity**, which defines meaning as the shortest program that reproduces a string. And yet, we reach for something beyond these: not just compression, but **transformation with essence retention**—something more akin to **semantic invariance**.
 
@@ -39,7 +39,7 @@ We do not seek to build a perfect compressor or a more efficient codec. We seek 
 ---
 
 ### Visual Metaphor (Figure 1 Suggestion):
-**“The Algorithmic Body”**  
+**"The Algorithmic Body"**  
 A diagram showing organs labeled as:
 - *Skin* = Serialization  
 - *Lungs* = Encoder  
@@ -48,7 +48,7 @@ A diagram showing organs labeled as:
 - *Muscle* = Decoder  
 - *Nerve* = Loss Function
 
-Each connected in a feedback loop forming a "body," with arrows passing a symbolic “agent state” through the full loop.
+Each connected in a feedback loop forming a "body," with arrows passing a symbolic "agent state" through the full loop.
 
 ---
 

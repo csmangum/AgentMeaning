@@ -212,6 +212,65 @@ class AgentState:
         return torch.tensor(features, dtype=torch.float32)
 
     @classmethod
+    def from_tensor(cls, tensor: torch.Tensor) -> "AgentState":
+        """Convert tensor representation back to agent state.
+        
+        This is the inverse of to_tensor method.
+        
+        Args:
+            tensor: Tensor representation of agent state
+            
+        Returns:
+            Reconstructed AgentState object
+        """
+        # Convert tensor to list if it's not already
+        if isinstance(tensor, torch.Tensor):
+            features = tensor.tolist()
+        else:
+            features = tensor
+            
+        # Extract position (first 3 features)
+        position = (features[0], features[1], features[2])
+        
+        # Extract health and energy (next 2 features)
+        health = features[3]
+        energy = features[4]
+        
+        # Extract resource level (next 1 feature)
+        resource_level = features[5]
+        
+        # Extract current health (next 1 feature)
+        current_health = features[6]
+        
+        # Extract is_defending (next 1 feature)
+        is_defending = features[7] > 0.5
+        
+        # Extract age (next 1 feature, denormalize)
+        age = int(features[8] * 1000)
+        
+        # Extract total reward (next 1 feature, denormalize)
+        total_reward = features[9] * 100.0
+        
+        # Extract role from one-hot encoding (next 5 features)
+        roles = ["explorer", "gatherer", "defender", "attacker", "builder"]
+        role_features = features[10:15]
+        role_index = role_features.index(max(role_features))
+        role = roles[role_index]
+        
+        # Create agent state with extracted features
+        return cls(
+            position=position,
+            health=health,
+            energy=energy,
+            role=role,
+            resource_level=resource_level,
+            current_health=current_health,
+            is_defending=is_defending,
+            age=age,
+            total_reward=total_reward
+        )
+
+    @classmethod
     def from_db_record(cls, record: Dict[str, Any]) -> "AgentState":
         """Create an agent state from a database record."""
         return cls(

@@ -1,0 +1,78 @@
+{
+    "model": {
+        "input_dim": 15,
+        "latent_dim": 32,
+        "encoder_hidden_dims": [
+            256,
+            128,
+            64
+        ],
+        "decoder_hidden_dims": [
+            64,
+            128,
+            256
+        ],
+        "compression_type": "entropy",
+        "compression_level": 5.0,
+        "vq_num_embeddings": 512,
+        "vq_commitment_cost": 0.25
+    },
+    "training": {
+        "batch_size": 64,
+        "learning_rate": 0.001,
+        "weight_decay": 1e-06,
+        "num_epochs": 2,
+        "recon_loss_weight": 1.0,
+        "kl_loss_weight": 0.1,
+        "semantic_loss_weight": 0.5,
+        "optimizer": "adam",
+        "scheduler": "cosine",
+        "scheduler_step_size": 30,
+        "scheduler_gamma": 0.5,
+        "checkpoint_dir": "results\\compression_experiments\\compression_experiments_20250327_191815\\models",
+        "checkpoint_interval": 10,
+        "patience": 10,
+        "min_delta": 0.0001
+    },
+    "data": {
+        "num_states": 10000,
+        "validation_split": 0.2,
+        "test_split": 0.1,
+        "position_range": [
+            -10.0,
+            10.0
+        ],
+        "health_range": [
+            0.0,
+            1.0
+        ],
+        "energy_range": [
+            0.0,
+            1.0
+        ],
+        "num_roles": 5,
+        "max_goals": 3,
+        "max_inventory_items": 10,
+        "use_augmentation": true,
+        "augmentation_noise_level": 0.05
+    },
+    "metrics": {
+        "drift_tracking_interval": 5,
+        "drift_threshold": 0.1,
+        "feature_extractors": [
+            "role",
+            "position",
+            "goals"
+        ],
+        "semantic_similarity_type": "cosine",
+        "use_tsne": true,
+        "tsne_perplexity": 30.0,
+        "use_pca": true,
+        "pca_components": 2
+    },
+    "experiment_name": "compression_5.0",
+    "debug": true,
+    "verbose": true,
+    "use_gpu": false,
+    "seed": 42
+}

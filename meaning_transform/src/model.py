@@ -292,6 +292,7 @@ class MeaningVAE(nn.Module):
         self.input_dim = input_dim
         self.latent_dim = latent_dim
         self.compression_type = compression_type
+        self.compression_level = compression_level
         
         # Create encoder and decoder
         self.encoder = Encoder(input_dim, latent_dim, use_batch_norm=use_batch_norm)

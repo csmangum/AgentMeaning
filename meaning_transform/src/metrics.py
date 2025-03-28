@@ -634,4 +634,69 @@ class CompressionThresholdFinder:
             "next_level_score": next_level["overall_score"] if next_level else None,
             "threshold_used": self.semantic_threshold,
             "all_evaluated_levels": [r["compression_level"] for r in sorted_results]
-        } 
+        }
+
+
+def compute_feature_drift(original_state, reconstructed_state) -> Dict[str, float]:
+    """
+    Compute semantic drift between original and reconstructed agent states.
+    
+    Args:
+        original_state: Original agent state
+        reconstructed_state: Reconstructed agent state
+        
+    Returns:
+        feature_drift: Dictionary of feature drift values (lower is better)
+    """
+    # Initialize feature drift dictionary
+    feature_drift = {}
+    
+    # Position drift (Euclidean distance)
+    orig_pos = np.array([original_state.position[0], original_state.position[1]])
+    recon_pos = np.array([reconstructed_state.position[0], reconstructed_state.position[1]])
+    feature_drift["position"] = float(np.linalg.norm(orig_pos - recon_pos))
+    
+    # Health drift (absolute difference)
+    feature_drift["health"] = float(abs(original_state.health - reconstructed_state.health))
+    
+    # Energy drift (absolute difference)
+    feature_drift["energy"] = float(abs(original_state.energy - reconstructed_state.energy))
+    
+    # Role drift (0 if same, 1 if different)
+    feature_drift["role"] = 0.0 if original_state.role == reconstructed_state.role else 1.0
+    
+    # Goals drift (Jaccard distance)
+    if hasattr(original_state, 'goals') and hasattr(reconstructed_state, 'goals'):
+        orig_goals = set(original_state.goals)
+        recon_goals = set(reconstructed_state.goals)
+        
+        if len(orig_goals) == 0 and len(recon_goals) == 0:
+            feature_drift["goals"] = 0.0
+        else:
+            intersection = len(orig_goals.intersection(recon_goals))
+            union = len(orig_goals.union(recon_goals))
+            feature_drift["goals"] = 1.0 - (intersection / union)
+    
+    # Binary features
+    if hasattr(original_state, 'is_alive') and hasattr(reconstructed_state, 'is_alive'):
+        feature_drift["is_alive"] = 0.0 if original_state.is_alive == reconstructed_state.is_alive else 1.0
+    
+    if hasattr(original_state, 'has_target') and hasattr(reconstructed_state, 'has_target'):
+        feature_drift["has_target"] = 0.0 if original_state.has_target == reconstructed_state.has_target else 1.0
+    
+    if hasattr(original_state, 'threatened') and hasattr(reconstructed_state, 'threatened'):
+        feature_drift["threatened"] = 0.0 if original_state.threatened == reconstructed_state.threatened else 1.0
+    
+    # Inventory drift (Jaccard distance if present)
+    if hasattr(original_state, 'inventory') and hasattr(reconstructed_state, 'inventory'):
+        orig_inv = set(original_state.inventory)
+        recon_inv = set(reconstructed_state.inventory)
+        
+        if len(orig_inv) == 0 and len(recon_inv) == 0:
+            feature_drift["inventory"] = 0.0
+        else:
+            intersection = len(orig_inv.intersection(recon_inv))
+            union = len(orig_inv.union(recon_inv))
+            feature_drift["inventory"] = 1.0 - (intersection / union)
+    
+    return feature_drift 

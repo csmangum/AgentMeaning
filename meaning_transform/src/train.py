@@ -24,7 +24,7 @@ from datetime import datetime
 import shutil
 
 from .model import MeaningVAE
-from .data import AgentStateDataset, AgentState, generate_agent_states
+from .data import AgentStateDataset, AgentState
 from .loss import CombinedLoss
 from .config import Config
 from .metrics import DriftTracker, SemanticMetrics, generate_t_sne_visualization
@@ -157,13 +157,27 @@ class Trainer:
         
     def prepare_data(self):
         """Prepare training and validation datasets."""
+        if self.train_dataset is not None and self.val_dataset is not None:
+            return  # Data already prepared
+        
         # Generate or load agent states
         dataset = AgentStateDataset(batch_size=self.config.training.batch_size)
         
-        if self.config.debug:
-            print(f"Generating {self.config.data.num_states} synthetic agent states...")
-        
-        dataset.generate_synthetic_data(self.config.data.num_states)
+        # Check if simulation.db exists and use it if available
+        db_path = "simulation.db"
+        if os.path.exists(db_path):
+            if self.config.debug:
+                print(f"Loading agent states from {db_path}...")
+            dataset.load_from_db(db_path, limit=self.config.data.num_states)
+            if not dataset.states:
+                if self.config.debug:
+                    print("No states loaded from database. Generating synthetic data instead.")
+                dataset.generate_synthetic_data(self.config.data.num_states)
+        else:
+            if self.config.debug:
+                print(f"Database file not found: {db_path}")
+                print(f"Generating {self.config.data.num_states} synthetic agent states...")
+            dataset.generate_synthetic_data(self.config.data.num_states)
         
         # Split into train and validation sets
         total_states = len(dataset.states)

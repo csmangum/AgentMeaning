@@ -3,6 +3,7 @@
 
 """
 Minimal training script to test metrics integration.
+Uses real data from simulation.db when available.
 """
 
 import os
@@ -14,8 +15,8 @@ from src.train import Trainer
 config = Config()
 config.experiment_name = "metrics_test"
 config.training.num_epochs = 1
-config.training.batch_size = 8  # Increase batch size
-config.data.num_states = 32  # Increase number of states
+config.training.batch_size = 8  # Small batch size
+config.data.num_states = 32  # Limited number of states for quick testing
 # Fix the input dimension to match the actual data dimension (15)
 config.model.input_dim = 15  
 # Modify encoder and decoder to not use batch normalization for this test
@@ -23,10 +24,17 @@ config.model.use_batch_norm = False
 config.debug = True
 config.verbose = True
 
+# Check if real data is available
+use_real_data = os.path.exists("simulation.db")
+if use_real_data:
+    print("Found simulation.db - using real agent states for testing")
+else:
+    print("simulation.db not found - will use synthetic agent states")
+
 # Create trainer with explicit device setting
 trainer = Trainer(config, device="cpu")
 
-# Run training
+# Run training (note: prepare_data will use real data if available due to our earlier changes)
 print(f"Starting mini training run with {config.training.num_epochs} epochs...")
 history = trainer.train()
 

@@ -70,6 +70,9 @@ class DataConfig:
     validation_split: float = 0.2
     test_split: float = 0.1
     
+    # Database configuration
+    db_path: str = "simulation.db"
+    
     # Agent state properties
     position_range: Tuple[float, float] = (-10.0, 10.0)
     health_range: Tuple[float, float] = (0.0, 1.0)

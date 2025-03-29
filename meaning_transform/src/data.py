@@ -177,17 +177,26 @@ class AgentState:
         features = []
 
         # Position (3 features)
-        features.extend(self.position)
+        # Handle None position or None components
+        if self.position is None:
+            features.extend([0.0, 0.0, 0.0])
+        else:
+            # Handle None values in position tuple
+            x = self.position[0] if self.position[0] is not None else 0.0
+            y = self.position[1] if self.position[1] is not None else 0.0
+            z = self.position[2] if self.position[2] is not None else 0.0
+            features.extend([x, y, z])
 
         # Health and energy (2 features)
-        features.extend([self.health, self.energy])
+        features.append(self.health if self.health is not None else 1.0)
+        features.append(self.energy if self.energy is not None else 1.0)
 
         # Resource level (1 feature)
         features.append(self.resource_level if self.resource_level is not None else 0.0)
 
         # Current health (1 feature)
         features.append(
-            self.current_health if self.current_health is not None else self.health
+            self.current_health if self.current_health is not None else (self.health if self.health is not None else 1.0)
         )
 
         # Is defending (1 feature)
@@ -291,6 +300,28 @@ class AgentState:
             role=determine_role(record),  # Helper function to determine role
         )
 
+    def get_feature_names(self) -> List[str]:
+        """Return names of features in the tensor representation.
+        
+        Returns:
+            List of feature names in the same order as the tensor representation
+        """
+        # Position features
+        features = ['position_x', 'position_y', 'position_z']
+        
+        # Health and energy
+        features.extend(['health', 'energy'])
+        
+        # Other numeric features
+        features.extend(['resource_level', 'current_health', 'is_defending', 'age', 'total_reward'])
+        
+        # Role one-hot features
+        roles = ["explorer", "gatherer", "defender", "attacker", "builder"]
+        role_features = [f'role_{role}' for role in roles]
+        features.extend(role_features)
+        
+        return features
+
 
 class AgentStateDataset:
     """Dataset for loading and batching agent states."""
@@ -307,20 +338,11 @@ class AgentStateDataset:
         self.batch_size = batch_size
         self._current_idx = 0
 
-    def generate_synthetic_data(self, num_states: int = 1000) -> None:
-        """
-        Generate synthetic agent states for training.
-
-        Args:
-            num_states: Number of states to generate
-        """
-        self.states = generate_agent_states(num_states)
-
     def get_batch(self) -> torch.Tensor:
         """Get a batch of agent states as tensors."""
         if not self.states:
             raise ValueError(
-                "Dataset is empty. Load data or generate synthetic states first."
+                "Dataset is empty. Load data from database first."
             )
 
         if self._current_idx >= len(self.states):
@@ -379,71 +401,7 @@ def determine_role(record: Dict[str, Any]) -> str:
     return "explorer"  # Default role
 
 
-# Functions for data generation and manipulation
-
-
-def generate_agent_states(count: int = 100) -> List[AgentState]:
-    """Generate a list of synthetic agent states with varied properties."""
-    states = []
-
-    # Define some possible roles and goals
-    roles = ["explorer", "gatherer", "defender", "attacker", "builder"]
-    goals = [
-        "find_resources",
-        "explore_area",
-        "defend_territory",
-        "attack_enemy",
-        "build_structure",
-        "collect_information",
-    ]
-
-    for i in range(count):
-        # Generate random properties
-        position = (
-            random.uniform(-100, 100),  # x
-            random.uniform(-100, 100),  # y
-            random.uniform(-10, 10),  # z
-        )
-        health = random.uniform(0.1, 1.0)
-        energy = random.uniform(0.1, 1.0)
-        resource_level = random.uniform(0, 100)
-        is_defending = random.random() < 0.2  # 20% chance of defending
-        age = random.randint(1, 500)
-        total_reward = random.uniform(-50, 100)
-
-        # Generate random inventory
-        inventory_size = random.randint(0, 5)
-        inventory = {}
-        for _ in range(inventory_size):
-            item_id = f"item_{random.randint(1, 20)}"
-            quantity = random.randint(1, 10)
-            inventory[item_id] = quantity
-
-        # Select random role and goals
-        role = random.choice(roles)
-        num_goals = random.randint(0, 3)
-        agent_goals = random.sample(goals, num_goals)
-
-        # Create agent state
-        state = AgentState(
-            position=position,
-            health=health,
-            energy=energy,
-            inventory=inventory,
-            role=role,
-            goals=agent_goals,
-            agent_id=f"agent_{i}",
-            step_number=random.randint(1, 1000),
-            resource_level=resource_level,
-            current_health=health * random.uniform(0.5, 1.0),
-            is_defending=is_defending,
-            age=age,
-            total_reward=total_reward,
-        )
-
-        states.append(state)
-
-    return states
+# Functions for data serialization and loading
 
 
 def serialize_states(states: List[AgentState]) -> bytes:

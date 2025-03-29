@@ -104,110 +104,112 @@
     - Test if weighted loss can preserve meaning of specific features even at higher compression levels
     - Implement progressive weighting strategies that adjust based on feature stability
 
-17. **Compression Mechanism Comparison**
-    - Compare entropy bottleneck vs. vector quantization approaches
-    - Analyze how different compression mechanisms affect different semantic properties
-    - Identify which mechanism better preserves hierarchical/relational properties
-    - Recommend optimal compression mechanism for different agent state types
-
-18. **Architecture Optimization for Feature Importance**
-    - Redesign encoder/decoder to give special attention to high-importance features
-    - Experiment with specialized network branches for spatial and resource features
-    - Implement feature-weighted bottleneck architecture
-    - Compare against baseline architecture for semantic preservation and efficiency
-
-19. **Latent Dimension Ratio Analysis**
-    - Investigate optimal ratio between input dimension and latent dimension
-    - Test different ratios across various agent state complexities
-    - Develop formula for estimating optimal latent dimension based on input dimension
-    - Document relationship between input-to-latent ratio and semantic preservation
-
-20. **Visualization & Diagnostic Tools**
-    - Create t-SNE/PCA visualizations of the latent space to see how agents cluster by role or other semantic attributes
-    - Expand drift logging and semantic audit tools to correlate drift with actual changes in agent behavior
-    - Develop feature-specific drift tracking dashboards based on importance findings
-
-21. **Feature-Specific Reconstruction Evaluation**
-    - Develop detailed metrics for feature-specific reconstruction quality
-    - Compare preservation quality across feature groups at different compression levels
-    - Correlate reconstruction quality with feature importance scores
-    - Create quality thresholds for mission-critical vs. secondary features
-
-22. **Downstream Behavioral Tests**
-    - Integrate reconstructed states back into the simulation to see if the agents behave similarly to the original states
-    - Use performance metrics (e.g., survival, task completion) as additional indicators of semantic preservation
-    - Test if behavior preservation correlates with feature importance rankings
-
-23. **Spatial Feature Optimization**
+17. **Spatial Feature Optimization**
     - Given high importance of spatial features (55.4%), explore specialized position encodings
     - Experiment with geometric or topological constraints in latent space
     - Test spatial-specific normalization or transformation techniques
     - Measure impact on overall semantic preservation from spatial optimizations
 
-24. **Adaptive Compression Architecture**
-    - Design and implement architecture that dynamically adjusts model size based on compression level
-    - Develop components that truly reduce parameter count when compression increases
-    - Implement latent space dimensionality that physically corresponds to compression parameter
-    - Benchmark storage efficiency across compression levels with the new architecture
-
-25. **Progressive Semantic Loss Scheduling**
-    - Implement training approach that gradually introduces semantic loss
-    - Compare early vs. late integration of semantic loss components
-    - Test curriculum approaches where semantic weight increases through training
-    - Analyze whether progressive scheduling improves convergence and final model quality
-
-26. **Feature Interaction Analysis**
+18. **Feature Interaction Analysis**
     - Extend feature importance to analyze how features interact with each other
     - Map relationships between spatial, resource, and performance features
     - Identify complementary or redundant feature pairs
     - Design architectural components that preserve critical feature interactions
 
-27. **Synthetic vs. Real Agent Comparison**
-    - Conduct comparative analysis of compression effects on synthetic vs. real agent states
-    - Identify qualitative differences in how different agent types respond to compression
-    - Document whether findings from synthetic data generalize to real agents
-    - Create guidelines for when synthetic data can substitute for real agent states
+19. **Meaning Metrics Development**
+    - Develop more sophisticated metrics beyond reconstruction error to capture subtle aspects of semantic preservation
+    - Create metrics that better correlate with behavioral equivalence rather than just state similarity
+    - Implement feature-specific meaning metrics that account for different feature types
+    - Develop composite metrics that weight features by their importance score
 
-28. **Ultra-Low Compression Testing**
-    - Test compression levels below 0.5 (0.1, 0.25) to find potential further improvements in semantic preservation
-    - Compare performance metrics across the expanded compression level range
-    - Determine if there's a diminishing returns threshold for lowering compression
+20. **Adaptive Compression Architecture**
+    - Design and implement architecture that dynamically adjusts model size based on compression level
+    - Develop components that truly reduce parameter count when compression increases
+    - Implement latent space dimensionality that physically corresponds to compression parameter
+    - Integrate feature importance-based capacity allocation into core architecture design
+    - Benchmark storage efficiency across compression levels with the new architecture
 
-29. **Fine-Grained Hyperparameter Tuning**
+21. **Progressive Semantic Loss Scheduling**
+    - Implement training approach that gradually introduces semantic loss
+    - Compare early vs. late integration of semantic loss components
+    - Test curriculum approaches where semantic weight increases through training
+    - Analyze whether progressive scheduling improves convergence and final model quality
+
+22. **Cross-Domain Transfer Testing**
+    - Test meaning preservation when transferring agent states across different simulation environments
+    - Analyze how well semantic properties transfer between different architectures and domains
+    - Identify which features maintain consistency across domains and which are context-dependent
+    - Develop techniques to improve cross-domain meaning preservation
+
+23. **Self-Adaptive Compression Systems**
+    - Develop systems that automatically determine optimal compression strategies based on semantic content
+    - Implement mechanisms to detect feature importance without manual analysis
+    - Create feedback loops that adjust compression based on semantic preservation metrics
+    - Test adaptive systems across varying agent types and environments
+
+24. **Compression Mechanism Comparison**
+    - Compare entropy bottleneck vs. vector quantization approaches
+    - Analyze how different compression mechanisms affect different semantic properties
+    - Identify which mechanism better preserves hierarchical/relational properties
+    - Recommend optimal compression mechanism for different agent state types
+
+25. **Visualization & Diagnostic Tools**
+    - Create t-SNE/PCA visualizations of the latent space to see how agents cluster by role or other semantic attributes
+    - Expand drift logging and semantic audit tools to correlate drift with actual changes in agent behavior
+    - Develop feature-specific drift tracking dashboards based on importance findings
+    - Create visualization tools for comparing compression effects across feature types
+
+26. **Downstream Behavioral Tests**
+    - Integrate reconstructed states back into the simulation to see if the agents behave similarly to the original states
+    - Use performance metrics (e.g., survival, task completion) as additional indicators of semantic preservation
+    - Test if behavior preservation correlates with feature importance rankings
+    - Develop standardized behavioral test suite for validating semantic preservation
+
+27. **Fine-Grained Compression Testing**
     - Test compression levels between 0.5-1.0 and 1.0-2.0 (e.g., 0.7, 0.8, 0.9, 1.2, 1.5)
-    - Fine-tune around optimal values with smaller intervals:
-      - Compression: 0.8-1.2
-      - Semantic weights: 1.5-2.5
-      - Latent dimensions: 24-48
-    - Map the complete performance curve across all hyperparameters
-    - Document the hyperparameter interactions with detailed metrics
+    - Combine with ultra-low compression testing (0.1, 0.25) to find potential further improvements
+    - Map the complete performance curve across all compression levels
+    - Identify optimal compression points for different feature types
 
-30. **Extended Training Performance Ceiling**
+28. **Extended Training Performance Ceiling**
     - Implement training for 100+ epochs to determine performance ceiling
     - Analyze convergence patterns at different compression levels
     - Identify if meaning preservation approaches asymptotic limit with extended training
     - Compare training efficiency across compression levels
 
-31. **Cross-Context Feature Importance Analysis**
+29. **Cross-Context Feature Importance Analysis**
     - Test feature importance across different simulation contexts and environments
     - Analyze stability of importance rankings across varying agent behaviors
     - Identify context-dependent features vs. universally important features
     - Develop adaptive models that adjust to context-specific importance profiles
 
-32. **Large-Scale Agent State Processing**
+30. **Large-Scale Agent State Processing**
     - Scale to very large datasets (20,000+ states) to further improve representation quality
     - Implement batch processing and distributed training optimizations
     - Measure how semantic preservation scales with dataset size
     - Analyze if larger datasets reduce the need for specialized architecture or loss functions
 
-33. **Adaptive Semantic Weight Scheduling**
-    - Implement dynamic adjustment of semantic loss weights during training
-    - Develop curriculum learning approach for balancing reconstruction vs. semantic preservation
-    - Test progressive semantic weight schedules (starting low, increasing over time)
-    - Compare against constant weighting strategy to measure improvements in final model quality
+31. **Dynamic Compression Adaptation**
+    - Research real-time compression adjustment based on evolving agent behavior and context
+    - Implement systems that can adjust compression ratios on-the-fly during simulation
+    - Test performance impact of dynamic vs. static compression strategies
+    - Develop adaptive compression mechanisms for time-varying feature importance
+
+32. **Extreme Compression Thresholds**
+    - Explore the limits of feature-specific compression by testing aggressive compression (3x-10x) on low-importance features
+    - Identify breakdown points where semantic preservation fails for each feature type
+    - Document the relationship between feature type, importance, and compression tolerance
+    - Establish guidelines for maximum safe compression by feature category
+
+33. **Feature Type Compression Characteristics**
+    - Investigate why binary/discrete features show better preservation than continuous ones
+    - Analyze the fundamentally different ways that various feature types encode meaning
+    - Develop specialized compression strategies optimized for specific feature data types
+    - Create a taxonomy of feature types and their compression characteristics
 
 34. **Embodied Meaning Preservation Framework**
     - Develop theoretical framework connecting spatial dominance to embodied cognition
     - Create metrics for measuring "identity preservation" vs. "behavioral preservation"
     - Explore how physical (spatial) vs. abstract (role) features contribute to agent identity
     - Test implications for transfer learning and cross-environment generalization
+    - Connect computational findings to philosophical theories of embodiment and meaning

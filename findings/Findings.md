@@ -62,12 +62,16 @@ This document presents a consolidated view of the most significant findings from
 
 ## Next Research Directions
 
-- Develop adaptive compression strategies that vary compression rates by feature importance
-- Investigate architecture modifications to enable model size reduction with compression
-- Explore fine-tuning around optimal values to further improve performance
-- Analyze feature-specific preservation patterns with optimal configuration
-- Scale to larger datasets (20,000+ states) to test generalizability
-- Integrate explicit semantic preservation objectives with feature-grouped architectures
-- Experiment with more extreme compression ratios for low-importance features
-- Develop dynamic compression adaptation mechanisms based on context or agent role
-- Combine feature-specific compression with feature-weighted loss functions
+- Develop standardized semantic drift measurement framework to provide consistent evaluation across experiments
+- Implement feature-weighted loss functions that prioritize high-importance features in the training process
+- Create specialized spatial feature optimization techniques given their 55.4% dominance in meaning preservation
+- Extend feature importance analysis to examine interactions between feature types
+- Develop more sophisticated meaning metrics beyond reconstruction loss that better capture semantic preservation
+- Investigate cross-domain transfer capabilities to test meaning preservation across different environments
+- Build self-adaptive compression systems that automatically determine optimal compression strategies
+- Implement dynamic compression adaptation mechanisms that respond to context changes and agent roles
+- Explore extreme compression thresholds for low-importance features, potentially beyond 5x compression
+- Analyze feature type compression characteristics to understand why binary features show better preservation
+- Develop an embodied meaning preservation framework connecting spatial dominance to cognitive embodiment theories
+- Integrate feature-specific compression with feature-weighted loss functions for optimized meaning retention
+- Create comprehensive behavioral validation techniques to verify semantic preservation beyond state similarity

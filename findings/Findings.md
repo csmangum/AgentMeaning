@@ -60,6 +60,18 @@ This document presents a consolidated view of the most significant findings from
 
 - **Efficiency-Importance Balance**: Our experiments demonstrate the feasibility of preserving critical aspects of agent meaning while reducing overall model size through selective application of compression, supporting the principle that meaning preservation can coexist with efficient representation. [Feature-Specific Compression Experiment](feature-specific-compression.md)
 
+## Non-Trivial Patterns
+
+- **U-shaped Compression-Meaning Relationship**: The consistent U-shaped curve between compression level and semantic preservation (optimal at 1.0, deteriorating at both 0.5 and 2.0+) demonstrates that balanced compression is fundamental to meaning preservation, not merely a technical artifact. This pattern appears in both validation loss metrics and semantic drift measurements.
+
+- **Spatial Dominance in Meaning Formation**: The 55.4% importance of spatial features isn't coincidental but aligns with embodiment theories in cognitive science and robotics, where physical situatedness forms the foundation of agent identity and interaction capabilities.
+
+- **Binary vs. Continuous Feature Resilience**: Binary/discrete features consistently demonstrate higher resilience to compression than continuous features, with status/role features maintaining perfect accuracy (1.0) despite aggressive compression. This pattern suggests fundamental differences in how different feature types encode meaning.
+
+- **Importance-Complexity Disconnect**: Feature importance doesn't correlate with raw dimensionality - spatial features require expansion (4x input dimensions) while higher-dimensional status features can be compressed to 0.375x their original size, revealing that semantic density varies independently from feature complexity.
+
+- **Semantic Weight-Compression Synergy**: Higher semantic weights (2.0) disproportionately improve meaning retention specifically at optimal compression levels (1.0), suggesting a synergistic relationship between compression balance and semantic focus.
+
 ## Next Research Directions
 
 - Develop standardized semantic drift measurement framework to provide consistent evaluation across experiments

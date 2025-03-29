@@ -281,23 +281,52 @@ class AgentState:
 
     @classmethod
     def from_db_record(cls, record: Dict[str, Any]) -> "AgentState":
-        """Create an agent state from a database record."""
+        """Create an agent state from a database record.
+        
+        Maps fields from the AgentStateModel database schema to AgentState properties.
+        
+        Args:
+            record: Dictionary of field values from the database
+            
+        Returns:
+            AgentState object initialized with database record values
+        """
+        # The AgentStateModel schema has these fields:
+        # id, simulation_id, step_number, agent_id, position_x, position_y, position_z,
+        # resource_level, current_health, is_defending, total_reward, age
+        
+        # Create 3D position tuple from x, y, z coordinates
+        position = (
+            record.get("position_x", 0.0),
+            record.get("position_y", 0.0),
+            record.get("position_z", 0.0),
+        )
+        
+        # Set health to current_health or default to 1.0
+        health = record.get("current_health", 1.0)
+        
+        # Set energy to resource_level (equivalent concept) or default to 1.0
+        energy = record.get("resource_level", 1.0)
+        
+        # Determine role based on agent properties
+        # In this case, we're using a simple rule based on is_defending flag
+        role = "defender" if record.get("is_defending", False) else "explorer"
+        
         return cls(
-            position=(
-                record.get("position_x", 0.0),
-                record.get("position_y", 0.0),
-                record.get("position_z", 0.0),
-            ),
-            health=record.get("current_health", 1.0),
-            energy=record.get("resource_level", 1.0),  # Using resource_level as energy
+            position=position,
+            health=health,
+            energy=energy,
             agent_id=record.get("agent_id"),
             step_number=record.get("step_number"),
             resource_level=record.get("resource_level"),
-            current_health=record.get("current_health"),
+            current_health=health,
             is_defending=record.get("is_defending", False),
             age=record.get("age", 0),
             total_reward=record.get("total_reward", 0.0),
-            role=determine_role(record),  # Helper function to determine role
+            role=role,
+            # Add inventory and goals as empty defaults
+            inventory={},
+            goals=[]
         )
 
     def get_feature_names(self) -> List[str]:
@@ -370,22 +399,50 @@ class AgentStateDataset:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
-        # Build query with optional limit
+        # Build query to select all relevant fields
         query = """
-            SELECT * FROM agent_states
-            ORDER BY step_number
+            SELECT 
+                id, simulation_id, step_number, agent_id, 
+                position_x, position_y, position_z,
+                resource_level, current_health, is_defending, 
+                total_reward, age
+            FROM agent_states
         """
+        
+        # Add ordering and limit if specified
+        query += " ORDER BY step_number"
         if limit:
             query += f" LIMIT {limit}"
 
-        # Execute query and convert results to AgentState objects
-        cursor.execute(query)
-        self.states = [
-            AgentState.from_db_record(dict(row)) for row in cursor.fetchall()
-        ]
-
-        conn.close()
-        print(f"Loaded {len(self.states)} agent states from database")
+        try:
+            # Execute query
+            cursor.execute(query)
+            
+            # Convert results to AgentState objects
+            self.states = [
+                AgentState.from_db_record(dict(row)) for row in cursor.fetchall()
+            ]
+            
+            conn.close()
+            print(f"Loaded {len(self.states)} agent states from database")
+            
+        except Exception as e:
+            conn.close()
+            raise RuntimeError(f"Error loading agent states: {e}")
+            
+    def load_from_file(self, file_path: str) -> None:
+        """
+        Load agent states from a pickle file.
+        
+        Args:
+            file_path: Path to the pickle file containing agent states
+        """
+        try:
+            with open(file_path, 'rb') as f:
+                self.states = pickle.load(f)
+            print(f"Loaded {len(self.states)} agent states from file")
+        except Exception as e:
+            raise RuntimeError(f"Error loading agent states from file: {e}")
 
 
 # Helper functions

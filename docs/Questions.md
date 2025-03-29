@@ -30,6 +30,15 @@ This document tracks all research questions from our experiments and their answe
 1. Is there a fundamental difference in how synthetic vs. real agent states respond to compression? *(Extended Compression)*
 2. How do importance rankings vary across different simulation contexts or environments? *(Feature Importance)*
 
+### Feature-Grouped Compression
+1. Why do resource and performance features show high reconstruction errors despite moderate compression?
+2. What explains the exceptional reconstruction quality of status features despite aggressive compression?
+3. How does expansion rather than compression of spatial features affect downstream task performance?
+4. What is the optimal balance between feature-specific compression rates for overall meaning preservation?
+5. How would explicit semantic loss functions further improve group-specific compression strategies?
+6. Is there a correlation between a feature's intrinsic complexity and its optimal compression strategy?
+7. How might multi-stage compression approaches with progressive feature prioritization improve results?
+
 ## Answered Questions
 
 1. **What is the optimal balance between reconstruction accuracy and semantic preservation?**

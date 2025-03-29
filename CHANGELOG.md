@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2025-03-30
+
+### Added
+
+#### Adaptive Architecture Implementation
+- Implemented `AdaptiveEntropyBottleneck` class that physically changes parameter count based on compression level
+- Created `FeatureGroupedVAE` with separate bottlenecks for different feature types
+- Added feature importance-based compression allocation system
+- Implemented dynamic parameter scaling that reduces model size at higher compression levels
+- Added group-specific latent dimension calculation based on feature count and importance
+- Created specialized encoder/decoder pathways for different feature groups
+- Implemented test suite in `test_adaptive_architecture.py` to verify parameter count reduction
+- Added visualization tools for parameter count vs. compression level analysis
+- Created example script demonstrating the adaptive architecture benefits
+- Fixed dimension compatibility issues between grouped features
+- Added detailed documentation on adaptive architecture usage
+
 ## [0.1.6] - 2025-03-29
 
 ### Added

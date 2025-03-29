@@ -6,6 +6,9 @@ echo Running hyperparameter tuning experiments...
 REM Set Python path - update this if needed
 set PYTHON=python
 
+REM Create main results directory if it doesn't exist
+if not exist "results" mkdir "results"
+
 REM Create results directory if it doesn't exist
 if not exist "results\hyperparameter_tuning" mkdir "results\hyperparameter_tuning"
 

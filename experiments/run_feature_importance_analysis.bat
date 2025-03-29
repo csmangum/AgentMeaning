@@ -6,6 +6,9 @@ echo Running feature importance analysis experiment...
 REM Set Python path - update this if needed
 set PYTHON=python
 
+REM Create main results directory if it doesn't exist
+if not exist "results" mkdir "results"
+
 REM Create results directory if it doesn't exist
 if not exist "results\feature_importance" mkdir "results\feature_importance"
 

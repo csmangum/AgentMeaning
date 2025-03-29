@@ -2,6 +2,10 @@
 
 This document captures the broader implications and potential impact of our experiments on meaning-preserving transformations for agent states.
 
+## Working Definition of Meaning
+
+In this context, "meaning" refers to the minimum essential representation of an agent's state that preserves its behavioral identity and functional equivalence across transformations. This definition draws a line between raw data, information, and meaning—where meaning is that distilled subset of information that maintains an agent's core identity and behavior patterns even when its representational form changes.
+
 ## Philosophical Implications
 
 ### Embodiment and Identity
@@ -43,6 +47,33 @@ This document captures the broader implications and potential impact of our expe
 - **Data Compression**: Feature-specific compression strategies could revolutionize semantic-aware data compression beyond agents. [Ref: Feature-Grouped VAE demonstrating different feature types benefit from radically different compression approaches]
 - **Knowledge Representation**: The hierarchical approach to feature importance offers a model for prioritizing aspects of knowledge representation in AI systems. [Ref: Feature Importance Analysis showing different feature sensitivity to compression, with discrete/binary features showing better preservation]
 - **Semantic-Preserving Bandwidth Optimization**: The differential compression approach could enable more efficient real-time agent state transmission across networks by applying higher compression to less important features while preserving critical state information. [Ref: Feature-Specific Compression achieving comparable performance with 2.4% fewer parameters]
+
+### Cross-Domain Applications
+These principles generalize to any domain where semantic consistency across transformation is critical:
+- **Language Models**: Feature-specific compression could improve token embedding efficiency while preserving semantic relationships
+- **Computer Vision**: Spatial feature expansion techniques may enhance object recognition persistence across transformations
+- **Recommendation Systems**: Binary feature resilience suggests categorical preferences may be more compressible than continuous engagement metrics
+- **Biological Simulations**: The embodiment hierarchy (spatial > resource > performance > status) may apply to cellular and organism modeling
+- **Federated Learning**: Meaning-preserving compression could enable more efficient model sharing while maintaining behavioral equivalence
+
+## Limitations and Open Questions
+
+### Conceptual Challenges
+- **Stability of Feature Importance**: Is feature importance stable across agent roles and simulation types, or does it fundamentally shift in different contexts?
+- **Meaning vs. Prediction**: Can meaning preservation be disentangled from prediction performance in the long-term, or are they ultimately convergent?
+- **Noisy but Critical Features**: What happens when importance conflicts with learnability (i.e., features that are noisy but critical to agent behavior)?
+- **Measurement Problem**: Do our current meaning preservation metrics (drift, behavior tests) capture the full spectrum of semantic preservation?
+
+### Technical Limitations
+- **Scaling Unknown**: Our findings come from systems of limited scale; how these principles scale to extremely high-dimensional agent states remains uncertain
+- **Computational Overhead**: Feature-specific compression requires more complex architectures than uniform compression, introducing trade-offs between design complexity and semantic fidelity
+- **Cross-Architecture Generalization**: It's unclear if meaning-preservation strategies transfer across fundamentally different neural architectures
+- **Temporal Dynamics**: Current work focuses on static agent states; preserving meaning in temporal sequences may require different approaches
+
+### Contextual Boundaries
+- **Environmental Dependency**: How much does meaning preservation depend on specific environmental contexts in which agents operate?
+- **Multi-Agent Emergence**: Our work focuses on individual agents; preserving emergent properties of multi-agent systems may involve different principles
+- **Out-of-Distribution Challenge**: The boundaries of meaning preservation when agents face novel environments not seen during training remain unexplored
 
 ## Future Research Directions
 

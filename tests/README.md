@@ -20,6 +20,17 @@ python -m pytest meaning_transform/tests/test_adaptive_model.py -v
 
 - `test_adaptive_bottleneck.py`: Tests for the adaptive bottleneck implementations with visualization
 - `test_adaptive_model.py`: Comprehensive unit tests for all adaptive model classes
+- `test_combined_loss.py`: Tests for the combined loss functions
+- `test_data_loading.py`: Tests for data loading and preprocessing
+- `test_drift_tracking.py`: Tests for semantic drift tracking over time
+- `test_evaluation.py`: Tests for model evaluation metrics
+- `test_explainability.py`: Tests for knowledge graph visualization, latent space visualization, and model explainability components
+- `test_loss.py`: Tests for various loss functions
+- `test_metrics.py`: Tests for semantic metrics calculation
+- `test_mini_train.py`: Tests for the mini-training loop
+- `test_model.py`: Tests for the MeaningVAE model implementations
+- `test_training.py`: Tests for the training process
+- `test_visualization.py`: Tests for result visualization
 - `run_tests.py`: Script to run all tests in the directory
 
 ## Adding New Tests

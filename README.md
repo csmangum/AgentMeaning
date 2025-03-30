@@ -1,4 +1,4 @@
-# **“Transformational Equivalence: Learning to Preserve Meaning Across Representational Layers”**
+# **Transformational Equivalence: Learning to Preserve Meaning Across Representational Layers**
 
 ## **Research Objective**
 

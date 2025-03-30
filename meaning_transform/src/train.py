@@ -25,6 +25,7 @@ import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from torch_geometric.data import Batch, Data
+import pandas as pd
 
 from .config import Config
 from .data import AgentState, AgentStateDataset
@@ -459,96 +460,154 @@ class Trainer:
         return metrics
 
     def track_semantic_drift(self):
-        """Track semantic drift of agent states through VAE transformation."""
+        """
+        Track semantic drift between original and reconstructed states.
+        
+        This method tracks semantic drift using the appropriate representation
+        (tensor or graph) and logs the results to the drift tracker.
+        
+        Returns:
+            Dictionary of semantic drift metrics
+        """
         self.model.eval()
-
-        with torch.no_grad():
-            # Track drift for either graph or tensor representations
-            if (
-                self.use_graph
-                and hasattr(self, "drift_tracking_graphs")
-                and self.drift_tracking_graphs
-            ):
-                # Process graph-based drift tracking
-                self._track_graph_semantic_drift()
-            else:
-                # Process standard tensor-based drift tracking
-                self._track_tensor_semantic_drift()
+        
+        if self.use_graph:
+            drift_metrics = self._track_graph_semantic_drift()
+        else:
+            drift_metrics = self._track_tensor_semantic_drift()
+            
+        # Print some important metrics
+        if drift_metrics and self.config.verbose:
+            print(
+                f"Semantic Drift: {drift_metrics.get('overall_drift', 0.0):.4f}, "
+                f"Preservation: {drift_metrics.get('preservation', 0.0):.4f}, "
+                f"Category: {drift_metrics.get('drift_category', 'unknown')}"
+            )
+            
+        return drift_metrics
 
     def _track_tensor_semantic_drift(self):
-        """Track semantic drift using tensor representations."""
-        # Convert states to tensors
-        tensors = [state.to_tensor() for state in self.drift_tracking_states]
-        states_tensor = torch.stack(tensors).to(self.device)
+        """Track semantic drift using tensor representation."""
+        if not self.drift_tracking_states:
+            return {}
 
-        # Pass through model
-        results = self.model(states_tensor)
+        # Set model to evaluation mode
+        self.model.eval()
 
-        # Extract reconstructions
-        reconstructions = results["reconstruction"].cpu()
+        # Lists to store batch inputs and outputs
+        original_tensors = []
+        reconstructed_tensors = []
 
-        # Calculate semantic metrics using standardized metrics
-        semantic_metrics = self.semantic_metrics.evaluate(
-            states_tensor.cpu(), reconstructions
-        )
+        # Process all drift tracking states
+        with torch.no_grad():
+            for state in self.drift_tracking_states:
+                x = state.to_tensor().unsqueeze(0).to(self.device)
+                x_reconstructed, _, _ = self.model(x)
 
-        # Add metrics to tracking history using standardized metric names
-        current_drift = {
-            "fidelity": semantic_metrics["overall_fidelity"],
-            "meaning_preservation": semantic_metrics["overall_preservation"],
-            "reconstruction_error": 1.0 - semantic_metrics["overall_fidelity"],
-        }
+                # Store the original and reconstructed tensors
+                original_tensors.append(x.cpu())
+                reconstructed_tensors.append(x_reconstructed.cpu())
 
-        self.semantic_drift_history.append(current_drift)
+        # Combine into batches
+        if original_tensors and reconstructed_tensors:
+            originals = torch.cat(original_tensors, dim=0)
+            reconstructions = torch.cat(reconstructed_tensors, dim=0)
 
-        # Log drift metrics
-        self.drift_tracker.log_semantic_drift(current_drift)
+            # Use standardized metrics for comprehensive evaluation
+            evaluation_results = self.semantic_metrics.evaluate(originals, reconstructions)
+            
+            # Log the main metrics
+            drift_metrics = {
+                "overall_drift": evaluation_results["drift"]["overall_drift"],
+                "preservation": evaluation_results["preservation"]["overall_preservation"],
+                "fidelity": evaluation_results["fidelity"]["overall_fidelity"],
+                "drift_category": evaluation_results["drift"]["drift_category"],
+            }
+
+            # Log feature group specific metrics
+            for group in ["spatial", "resources", "performance", "role"]:
+                if f"{group}_drift" in evaluation_results["drift"]:
+                    drift_metrics[f"{group}_drift"] = evaluation_results["drift"][f"{group}_drift"]
+                    
+            # Add to drift tracking history
+            self.semantic_drift_history.append(drift_metrics)
+            
+            # Log to drift tracker
+            self.drift_tracker.log_metrics(drift_metrics)
+            
+            return drift_metrics
+        
+        return {}
 
     def _track_graph_semantic_drift(self):
-        """Track semantic drift using graph representations."""
-        results_list = []
+        """Track semantic drift using graph representation."""
+        if not self.drift_tracking_states:
+            return {}
 
-        # Process each graph individually to avoid batch size issues
-        for graph_data in self.drift_tracking_graphs:
-            # Move to device
-            graph_data = graph_data.to(self.device)
+        # Set model to evaluation mode
+        self.model.eval()
 
-            # Process through model
-            results = self.model(graph_data)
-            results_list.append(results)
+        # Lists to store original and reconstructed graph data objects
+        original_graphs = []
+        reconstructed_graphs = []
 
-        # Calculate graph-based semantic metrics
-        node_features_orig = [g.x.cpu() for g in self.drift_tracking_graphs]
-        node_features_recon = [r["reconstruction"].cpu() for r in results_list]
+        # Process all drift tracking states
+        with torch.no_grad():
+            for state in self.drift_tracking_states:
+                # Convert to graph
+                graph_data = state.to_graph()
+                
+                # Move to device
+                graph_data = graph_data.to(self.device)
+                
+                # Create a batch with single graph
+                batch = Batch.from_data_list([graph_data])
+                
+                # Run through model
+                reconstructed_batch = self.model(batch)
+                
+                # Get individual graph from batch
+                reconstructed_graph = reconstructed_batch.to_data_list()[0]
+                
+                # Store for batch evaluation
+                original_graphs.append(graph_data.cpu())
+                reconstructed_graphs.append(reconstructed_graph.cpu())
 
-        # Use standardized metrics for graph evaluation if available
-        try:
-            # Try to use dedicated graph metrics method if available
-            semantic_metrics = self.semantic_metrics.evaluate_graph(
-                self.drift_tracking_graphs, results_list, self.model
-            )
-        except AttributeError:
-            # Fall back to node feature comparison if graph metrics not available
-            # Convert node features to tensors for standardized metrics
-            orig_tensors = torch.cat([feat for feat in node_features_orig], dim=0)
-            recon_tensors = torch.cat([feat for feat in node_features_recon], dim=0)
+        # Use standardized metrics to evaluate graph-based drift
+        if original_graphs and reconstructed_graphs:
+            # Convert graphs to tensors for standardized evaluation
+            # This extracts node features into tensor form
+            original_tensors = torch.stack([g.x for g in original_graphs])
+            reconstructed_tensors = torch.stack([g.x for g in reconstructed_graphs])
+            
+            # Use the same standardized metrics for evaluation
+            evaluation_results = self.semantic_metrics.evaluate(original_tensors, reconstructed_tensors)
+            
+            # Log the main metrics
+            drift_metrics = {
+                "overall_drift": evaluation_results["drift"]["overall_drift"],
+                "preservation": evaluation_results["preservation"]["overall_preservation"],
+                "fidelity": evaluation_results["fidelity"]["overall_fidelity"],
+                "drift_category": evaluation_results["drift"]["drift_category"],
+            }
 
-            # Use standard evaluation
-            semantic_metrics = self.semantic_metrics.evaluate(
-                orig_tensors, recon_tensors
-            )
-
-        # Add metrics to tracking history using standardized metric names
-        current_drift = {
-            "fidelity": semantic_metrics.get("overall_fidelity", 0.0),
-            "meaning_preservation": semantic_metrics.get("overall_preservation", 0.0),
-            "reconstruction_error": 1.0 - semantic_metrics.get("overall_fidelity", 0.0),
-        }
-
-        self.semantic_drift_history.append(current_drift)
-
-        # Log drift metrics
-        self.drift_tracker.log_semantic_drift(current_drift)
+            # Log feature group specific metrics
+            for group in ["spatial", "resources", "performance", "role"]:
+                if f"{group}_drift" in evaluation_results["drift"]:
+                    drift_metrics[f"{group}_drift"] = evaluation_results["drift"][f"{group}_drift"]
+            
+            # Additional graph-specific metrics (edge preservation, etc.)
+            # Could be implemented here
+            
+            # Add to drift tracking history
+            self.semantic_drift_history.append(drift_metrics)
+            
+            # Log to drift tracker
+            self.drift_tracker.log_metrics(drift_metrics)
+            
+            return drift_metrics
+            
+        return {}
 
     def save_checkpoint(
         self, epoch: int, metrics: Dict[str, float], is_best: bool = False
@@ -690,17 +749,78 @@ class Trainer:
         plt.close()
 
     def plot_semantic_drift(self):
-        """Plot semantic drift over time."""
+        """Plot semantic drift metrics over time."""
         if not self.semantic_drift_history:
             return
 
-        # Use the drift tracker's visualization instead of custom plotting
-        output_file = self.experiment_dir / "semantic_drift.png"
-        self.drift_tracker.visualize_drift(str(output_file))
-
-        # Also generate a comprehensive report
-        report_file = self.experiment_dir / "drift_report.md"
-        report = self.drift_tracker.generate_report(str(report_file))
+        plt.figure(figsize=(12, 8))
+        
+        # Extract metrics
+        epochs = list(range(1, len(self.semantic_drift_history) + 1))
+        overall_drift = [m.get("overall_drift", 0) for m in self.semantic_drift_history]
+        preservation = [m.get("preservation", 0) for m in self.semantic_drift_history]
+        fidelity = [m.get("fidelity", 0) for m in self.semantic_drift_history]
+        
+        # Feature group specific metrics if available
+        spatial_drift = [m.get("spatial_drift", None) for m in self.semantic_drift_history]
+        resources_drift = [m.get("resources_drift", None) for m in self.semantic_drift_history]
+        performance_drift = [m.get("performance_drift", None) for m in self.semantic_drift_history]
+        role_drift = [m.get("role_drift", None) for m in self.semantic_drift_history]
+        
+        # Main plot for overall metrics
+        plt.subplot(2, 1, 1)
+        plt.plot(epochs, overall_drift, "r-", label="Overall Drift", linewidth=2)
+        plt.plot(epochs, preservation, "g-", label="Meaning Preservation", linewidth=2)
+        plt.plot(epochs, fidelity, "b-", label="Fidelity", linewidth=2)
+        plt.xlabel("Epoch")
+        plt.ylabel("Score")
+        plt.title("Semantic Metrics Over Time")
+        plt.legend()
+        plt.grid(True)
+        
+        # Plot for feature group specific drift
+        plt.subplot(2, 1, 2)
+        
+        # Filter out None values
+        if any(x is not None for x in spatial_drift):
+            plt.plot(epochs, [x if x is not None else 0 for x in spatial_drift], "r-", label="Spatial Drift")
+        if any(x is not None for x in resources_drift):
+            plt.plot(epochs, [x if x is not None else 0 for x in resources_drift], "g-", label="Resources Drift")
+        if any(x is not None for x in performance_drift):
+            plt.plot(epochs, [x if x is not None else 0 for x in performance_drift], "b-", label="Performance Drift")
+        if any(x is not None for x in role_drift):
+            plt.plot(epochs, [x if x is not None else 0 for x in role_drift], "m-", label="Role Drift")
+            
+        plt.xlabel("Epoch")
+        plt.ylabel("Drift Score")
+        plt.title("Feature-Specific Semantic Drift")
+        plt.legend()
+        plt.grid(True)
+        
+        plt.tight_layout()
+        
+        # Save the plot
+        drift_plot_path = self.experiment_dir / "visualizations" / "semantic_drift.png"
+        plt.savefig(drift_plot_path)
+        plt.close()
+        
+        if self.config.verbose:
+            print(f"Saved semantic drift plot to {drift_plot_path}")
+            
+        # Save the raw drift data for further analysis
+        drift_data = pd.DataFrame({
+            "epoch": epochs,
+            "overall_drift": overall_drift,
+            "preservation": preservation,
+            "fidelity": fidelity,
+            "spatial_drift": spatial_drift,
+            "resources_drift": resources_drift,
+            "performance_drift": performance_drift,
+            "role_drift": role_drift
+        })
+        
+        drift_csv_path = self.experiment_dir / "visualizations" / "semantic_drift_data.csv"
+        drift_data.to_csv(drift_csv_path, index=False)
 
     def train(self, resume_from: Optional[str] = None):
         """

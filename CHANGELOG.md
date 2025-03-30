@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] - 2023-08-14
+
+### Added
+
+#### Knowledge Graph & Graph Neural Network Implementation
+- Implemented `AgentStateToGraph` converter for transforming agent states into knowledge graphs
+- Created `GraphEncoder` and `GraphDecoder` for processing graph-structured agent data
+- Added `VGAE` (Variational Graph Autoencoder) for graph-based compression
+- Implemented `GraphCompressionModel` combining VGAE with semantic preservation techniques
+- Created specialized loss functions with `GraphVAELoss` and `GraphSemanticLoss`
+- Added PyTorch Geometric integration for efficient graph neural network operations
+- Implemented NetworkX integration for knowledge graph construction and manipulation
+- Created `KnowledgeGraphDataset` for handling collections of agent state graphs
+
+#### Interactive Visualization & Explainability
+- Implemented `AgentStateDashboard` for interactive exploration of agent states
+- Created `LatentSpaceExplorer` for visualizing and traversing latent representations
+- Added support for interactive graph visualization with Dash and Cytoscape
+- Implemented `GraphVisualizer` and `LatentSpaceVisualizer` for advanced data exploration
+- Created `ModelExplainer` for interpreting model decisions and important features
+- Added support for visualizing feature importance and node attributions in agent graphs
+- Implemented dashboard for real-time monitoring of agent state compression
+
+#### State Detail Experimentation
+- Added infrastructure for systematic experimentation with agent state compositions
+- Implemented tooling for analyzing impact of state detail granularity on meaning preservation
+- Created framework for testing different weighting strategies across property combinations
+- Added support for analyzing categorical vs. continuous property distributions
+- Implemented utilities for measuring knowledge graph density effects on semantic preservation
+- Created examples showing usage of new graph-based agent state representation
+
+#### Package Configuration
+- Expanded package imports in `__init__.py` with new components
+- Updated project documentation with enhanced module descriptions
+- Added new dependencies including networkx, torch-geometric, rdflib, dash, and XAI libraries
+- Created example scripts demonstrating knowledge graph and dashboard functionality
+
 ## [0.1.7] - 2025-03-30
 
 ### Added

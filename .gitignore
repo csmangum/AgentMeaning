@@ -173,5 +173,7 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 .cursor
+!.cursor/rules/
+!.cursor/rules/**
 
 results/*

@@ -307,7 +307,7 @@ class CombinedLoss(nn.Module):
             loss_dict: Dictionary of loss components and total loss
         """
         # Extract values from model output
-        x_reconstructed = model_output["x_reconstructed"]
+        x_reconstructed = model_output["reconstruction"]
         mu = model_output["mu"]
         log_var = model_output["log_var"]
         compression_loss = model_output.get("compression_loss", torch.tensor(0.0))  # Ensure tensor type

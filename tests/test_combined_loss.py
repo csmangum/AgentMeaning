@@ -84,7 +84,7 @@ def test_combined_loss():
         
         # Create model output dictionary
         model_output = {
-            "x_reconstructed": x_reconstructed,
+            "reconstruction": x_reconstructed,
             "mu": mu,
             "log_var": log_var,
             "compression_loss": torch.tensor(0.1)

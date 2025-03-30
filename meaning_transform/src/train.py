@@ -502,7 +502,8 @@ class Trainer:
         with torch.no_grad():
             for state in self.drift_tracking_states:
                 x = state.to_tensor().unsqueeze(0).to(self.device)
-                x_reconstructed, _, _ = self.model(x)
+                model_output = self.model(x)
+                x_reconstructed = model_output["reconstruction"]
 
                 # Store the original and reconstructed tensors
                 original_tensors.append(x.cpu())

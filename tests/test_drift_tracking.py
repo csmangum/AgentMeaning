@@ -8,6 +8,7 @@ Test script specifically for the drift tracking functionality in train.py.
 import os
 import torch
 import numpy as np
+import sys
 from meaning_transform.src.metrics import (
     DriftTracker,
     CompressionThresholdFinder
@@ -40,14 +41,8 @@ def create_test_batch(batch_size=10, input_dim=50):
     
     return batch
 
-# Create output directory
+# Create output directory - modified to avoid automatic generation
 output_dir = "test_results/drift_test"
-os.makedirs(output_dir, exist_ok=True)
-os.makedirs(os.path.join(output_dir, "visualizations"), exist_ok=True)
-
-# Create synthetic data
-print("Creating test data...")
-original_batch = create_test_batch(batch_size=10, input_dim=50)
 
 # Simulate model output dictionary
 def simulate_model_output(original_batch, perturbation=0.1):
@@ -60,8 +55,9 @@ def simulate_model_output(original_batch, perturbation=0.1):
     z = torch.randn(original_batch.size(0), 32)
     
     return {
-        "x_reconstructed": reconstructed,
-        "z": z
+        "z": z,
+        "reconstruction": reconstructed,
+        "kl_loss": torch.tensor(0.1),
     }
 
 # Custom t-SNE visualization for small sample sizes
@@ -112,6 +108,11 @@ def custom_tsne_visualization(latent_vectors, labels=None, output_file=None):
 # Simulate the track_semantic_drift method from train.py
 def test_track_semantic_drift(iterations=3):
     """Test the semantic drift tracking functionality."""
+    # Create output directories only when the test is explicitly run
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "visualizations"), exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "drift_tracking"), exist_ok=True)
+    
     # Initialize metrics tools
     drift_tracker = DriftTracker(log_dir=os.path.join(output_dir, "drift_tracking"))
     semantic_metrics = StandardizedMetrics()
@@ -137,12 +138,12 @@ def test_track_semantic_drift(iterations=3):
             iteration=i,
             compression_level=compression_level,
             original=batch,
-            reconstructed=results["x_reconstructed"]
+            reconstructed=results["reconstruction"]
         )
         
         # Calculate metrics using standardized metrics
         standard_metrics = semantic_metrics.evaluate(
-            batch, results["x_reconstructed"]
+            batch, results["reconstruction"]
         )
         
         # Create metrics for history tracking
@@ -186,8 +187,11 @@ def test_track_semantic_drift(iterations=3):
     
     return drift_history
 
-# Run the test
-print("Testing drift tracking functionality...")
-drift_history = test_track_semantic_drift(iterations=4)
-
-print("\nTest completed. Check the test_results/drift_test directory for outputs.") 
+# Only run the test when explicitly requested
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "--run-test":
+    print("Testing drift tracking functionality...")
+    drift_history = test_track_semantic_drift(iterations=4)
+    print("\nTest completed. Check the test_results/drift_test directory for outputs.")
+else:
+    print("Drift tracking test module loaded but not executed.")
+    print("To run this test explicitly, use: python test_drift_tracking.py --run-test") 

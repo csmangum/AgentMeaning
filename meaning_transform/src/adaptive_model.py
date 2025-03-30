@@ -235,7 +235,7 @@ class AdaptiveMeaningVAE(nn.Module):
 
         # Return all tensors and loss components
         return {
-            "x_reconstructed": x_reconstructed,
+            "reconstruction": x_reconstructed,
             "mu": mu,
             "log_var": log_var,
             "z": z,
@@ -268,7 +268,7 @@ class AdaptiveMeaningVAE(nn.Module):
             z: Latent representation
 
         Returns:
-            x_reconstructed: Reconstructed output
+            reconstruction: Reconstructed output
         """
         return self.decoder(z)
 
@@ -446,7 +446,7 @@ class FeatureGroupedVAE(nn.Module):
 
         # Return all tensors and loss components
         return {
-            "x_reconstructed": x_reconstructed,
+            "reconstruction": x_reconstructed,
             "mu": mu,
             "log_var": log_var,
             "z": z,
@@ -477,7 +477,15 @@ class FeatureGroupedVAE(nn.Module):
         return z_compressed
 
     def decode(self, z: torch.Tensor) -> torch.Tensor:
-        """Decode a latent representation to reconstruction."""
+        """
+        Decode a latent representation to reconstruction.
+
+        Args:
+            z: Latent representation
+
+        Returns:
+            reconstruction: Reconstructed output
+        """
         return self.decoder(z)
 
     def save(self, filepath: str) -> None:

@@ -185,7 +185,7 @@ class TestAdaptiveMeaningVAE:
 
         # Check that all expected outputs are present
         expected_keys = [
-            "x_reconstructed",
+            "reconstruction",
             "mu",
             "log_var",
             "z",
@@ -198,7 +198,7 @@ class TestAdaptiveMeaningVAE:
             assert key in output, f"Missing output: {key}"
 
         # Check shapes
-        assert output["x_reconstructed"].shape == x.shape
+        assert output["reconstruction"].shape == x.shape
         assert output["mu"].shape == (
             vae_params["batch_size"],
             vae_params["latent_dim"],
@@ -260,7 +260,7 @@ class TestAdaptiveMeaningVAE:
         # Create random input for comparison
         torch.manual_seed(fixed_seed)  # Set seed for input data
         x = torch.randn(vae_params["batch_size"], vae_params["input_dim"])
-        before_save = vae(x)["x_reconstructed"]
+        before_save = vae(x)["reconstruction"]
 
         # Save and load model
         with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp:
@@ -288,7 +288,7 @@ class TestAdaptiveMeaningVAE:
             pass
 
         # Test that the loaded model produces the same output
-        after_load = new_vae(x)["x_reconstructed"]
+        after_load = new_vae(x)["reconstruction"]
         assert torch.allclose(before_save, after_load, rtol=1e-4, atol=1e-4)
 
     def test_compression_rate(self, vae_params):
@@ -395,7 +395,7 @@ class TestFeatureGroupedVAE:
 
         # Check that all expected outputs are present
         expected_keys = [
-            "x_reconstructed",
+            "reconstruction",
             "mu",
             "log_var",
             "z",
@@ -408,7 +408,7 @@ class TestFeatureGroupedVAE:
             assert key in output, f"Missing output: {key}"
 
         # Check shapes
-        assert output["x_reconstructed"].shape == x.shape
+        assert output["reconstruction"].shape == x.shape
         assert output["mu"].shape == (
             vae_params["batch_size"],
             vae_params["latent_dim"],
@@ -472,7 +472,7 @@ class TestFeatureGroupedVAE:
         # Create random input for comparison
         torch.manual_seed(fixed_seed)  # Set seed for input data
         x = torch.randn(vae_params["batch_size"], vae_params["input_dim"])
-        before_save = vae(x)["x_reconstructed"]
+        before_save = vae(x)["reconstruction"]
 
         # Save and load model
         with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp:
@@ -501,7 +501,7 @@ class TestFeatureGroupedVAE:
             pass
 
         # Test that the loaded model produces the same output
-        after_load = new_vae(x)["x_reconstructed"]
+        after_load = new_vae(x)["reconstruction"]
         assert torch.allclose(before_save, after_load, rtol=1e-4, atol=1e-4)
 
     def test_compression_rate(self, vae_params, feature_groups):

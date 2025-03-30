@@ -28,7 +28,7 @@ from torch_geometric.nn import (
     global_mean_pool,
 )
 
-from meaning_transform.src.metrics import SemanticMetrics
+from .metrics import SemanticMetrics
 
 # Graph Neural Network model implementations
 

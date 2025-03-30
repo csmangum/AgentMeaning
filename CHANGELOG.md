@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.10] - 2023-08-16
+
+### Added
+
+#### Feature Importance Analysis System
+- Implemented `FeatureImportanceAnalyzer` class for evaluating feature contributions to agent state meaning
+- Added support for analyzing importance based on behavior vectors and outcomes
+- Created visualization tools for feature importance with detailed group-level breakdown
+- Integrated importance analysis with standardized metrics for weighted evaluation
+- Added drift analysis capabilities with importance-weighted metrics
+- Implemented feature group weighting calculation based on importance scores
+- Created examples demonstrating feature importance analysis workflow
+- Added database integration for loading and analyzing real agent state data
+- Enhanced visualization outputs with detailed importance breakdowns
+- Implemented customizable feature group categorization
+- Created comprehensive documentation for the feature importance API
+
 ## [0.1.9] - 2023-08-15
 
 ### Added

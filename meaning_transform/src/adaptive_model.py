@@ -90,9 +90,10 @@ class AdaptiveEntropyBottleneck(nn.Module):
         # Add noise for quantization
         if self.training:
             # Reparameterization trick during training
+            local_rng = torch.Generator(device=mu.device)
             if self.seed is not None:
-                torch.manual_seed(self.seed)
-            epsilon = torch.randn_like(mu)
+                local_rng.manual_seed(self.seed)
+            epsilon = torch.randn_like(mu, generator=local_rng)
             z_compressed_effective = mu + torch.exp(log_scale) * epsilon
         else:
             # Deterministic rounding during inference

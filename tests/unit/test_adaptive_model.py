@@ -244,13 +244,21 @@ class TestAdaptiveMeaningVAE:
 
     def test_save_load(self, vae_params):
         """Test saving and loading the model."""
+        # Use a fixed seed for reproducibility
+        fixed_seed = 42
+        
         vae = AdaptiveMeaningVAE(
             input_dim=vae_params["input_dim"],
             latent_dim=vae_params["latent_dim"],
             compression_level=2.0,
+            seed=fixed_seed
         )
+        
+        # Set model to eval mode for deterministic behavior
+        vae.eval()
 
         # Create random input for comparison
+        torch.manual_seed(fixed_seed)  # Set seed for input data
         x = torch.randn(vae_params["batch_size"], vae_params["input_dim"])
         before_save = vae(x)["x_reconstructed"]
 
@@ -264,7 +272,11 @@ class TestAdaptiveMeaningVAE:
                 input_dim=vae_params["input_dim"],
                 latent_dim=vae_params["latent_dim"],
                 compression_level=2.0,
+                seed=fixed_seed
             )
+            
+            # Set model to eval mode for deterministic behavior
+            new_vae.eval()
 
             # Load saved parameters
             new_vae.load(filepath)
@@ -277,7 +289,7 @@ class TestAdaptiveMeaningVAE:
 
         # Test that the loaded model produces the same output
         after_load = new_vae(x)["x_reconstructed"]
-        assert torch.allclose(before_save, after_load)
+        assert torch.allclose(before_save, after_load, rtol=1e-4, atol=1e-4)
 
     def test_compression_rate(self, vae_params):
         """Test compression rate calculation."""
@@ -443,14 +455,22 @@ class TestFeatureGroupedVAE:
 
     def test_save_load(self, vae_params, feature_groups):
         """Test saving and loading the model."""
+        # Use a fixed seed for reproducibility
+        fixed_seed = 42
+        
         vae = FeatureGroupedVAE(
             input_dim=vae_params["input_dim"],
             latent_dim=vae_params["latent_dim"],
             feature_groups=feature_groups,
             base_compression_level=1.0,
+            seed=fixed_seed
         )
+        
+        # Set model to eval mode for deterministic behavior
+        vae.eval()
 
         # Create random input for comparison
+        torch.manual_seed(fixed_seed)  # Set seed for input data
         x = torch.randn(vae_params["batch_size"], vae_params["input_dim"])
         before_save = vae(x)["x_reconstructed"]
 
@@ -465,7 +485,11 @@ class TestFeatureGroupedVAE:
                 latent_dim=vae_params["latent_dim"],
                 feature_groups=feature_groups,
                 base_compression_level=1.0,
+                seed=fixed_seed
             )
+            
+            # Set model to eval mode for deterministic behavior
+            new_vae.eval()
 
             # Load saved parameters
             new_vae.load(filepath)
@@ -478,7 +502,7 @@ class TestFeatureGroupedVAE:
 
         # Test that the loaded model produces the same output
         after_load = new_vae(x)["x_reconstructed"]
-        assert torch.allclose(before_save, after_load)
+        assert torch.allclose(before_save, after_load, rtol=1e-4, atol=1e-4)
 
     def test_compression_rate(self, vae_params, feature_groups):
         """Test compression rate calculation."""

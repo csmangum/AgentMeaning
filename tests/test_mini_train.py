@@ -6,10 +6,22 @@ Minimal training script to test metrics integration.
 Uses real data from simulation.db when available.
 """
 
+import sys
+from pathlib import Path
+
 import os
 import torch
-from src.config import Config
-from src.train import Trainer
+import numpy as np
+
+# Add the project root to the path
+project_root = str(Path(__file__).resolve().parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from meaning_transform.src.config import Config
+from meaning_transform.src.model import MeaningVAE
+from meaning_transform.src.loss import CombinedLoss
+from meaning_transform.src.train import Trainer
 
 # Create a minimal configuration
 config = Config()

@@ -286,3 +286,16 @@
     - Create statistical power analysis to determine minimum sample sizes needed
     - Document statistical verification methodology and results for all major findings
     - Generate statistical significance reports for feature-specific compression improvements
+
+42. **State Detail Combination Experiments**
+    - Systematically vary agent state composition (e.g., adding/removing property types)
+    - Test impact of state detail granularity on meaning preservation (coarse vs. fine-grained states)
+    - Experiment with different weighting strategies across various state detail combinations
+    - Analyze how categorical vs. continuous property distributions affect compression effectiveness
+    - Test varying levels of property interdependence and correlation in state representations
+    - Measure knowledge graph density effects on semantic preservation
+    - Experiment with hierarchical vs. flat state representations
+    - Identify optimal state detail combinations for different agent roles and contexts
+    - Create adaptive state representation strategies based on environmental demands
+    - Develop guidelines for choosing state detail configurations based on compression requirements
+    - Document how different state compositions affect the meaning-preservation bottleneck

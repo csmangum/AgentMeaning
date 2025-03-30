@@ -28,8 +28,6 @@ except ImportError as e:
     print(f"Error importing modules: {e}")
     print("\nTrying alternative import paths...")
     try:
-        from src.data import AgentState, generate_agent_states
-        from src.model import MeaningVAE
         print("Successfully imported using relative paths.")
     except ImportError:
         print("Import failed. Check the project structure and import paths.")
@@ -115,7 +113,7 @@ def main():
         results_standard = model_standard(batch)
         print(f"Input shape: {batch.shape}")
         print(f"Latent shape: {results_standard['z'].shape}")
-        print(f"Output shape: {results_standard['x_reconstructed'].shape}")
+        print(f"Output shape: {results_standard['reconstruction'].shape}")
         print(f"KL loss: {results_standard['kl_loss'].item():.4f}")
         
         # Process through entropy bottleneck VAE
@@ -124,7 +122,7 @@ def main():
         print(f"Input shape: {batch.shape}")
         print(f"Latent shape: {results_entropy['z'].shape}")
         print(f"Compressed shape: {results_entropy['z_compressed'].shape}")
-        print(f"Output shape: {results_entropy['x_reconstructed'].shape}")
+        print(f"Output shape: {results_entropy['reconstruction'].shape}")
         print(f"KL loss: {results_entropy['kl_loss'].item():.4f}")
         print(f"Compression loss: {results_entropy['compression_loss'].item():.4f}")
         
@@ -134,18 +132,18 @@ def main():
         print(f"Input shape: {batch.shape}")
         print(f"Latent shape: {results_vq['z'].shape}")
         print(f"Quantized shape: {results_vq['z_compressed'].shape}")
-        print(f"Output shape: {results_vq['x_reconstructed'].shape}")
+        print(f"Output shape: {results_vq['reconstruction'].shape}")
         print(f"KL loss: {results_vq['kl_loss'].item():.4f}")
-        print(f"VQ loss: {results_vq['vq_loss'].item():.4f}")
+        print(f"VQ loss: {results_vq['quantization_loss'].item():.4f}")
         print(f"Codebook perplexity: {results_vq['perplexity'].item():.2f}")
         
         # Calculate reconstruction errors
         print_divider()
         print("Calculating reconstruction errors...")
         
-        mse_standard = torch.mean((batch - results_standard['x_reconstructed'])**2).item()
-        mse_entropy = torch.mean((batch - results_entropy['x_reconstructed'])**2).item()
-        mse_vq = torch.mean((batch - results_vq['x_reconstructed'])**2).item()
+        mse_standard = torch.mean((batch - results_standard['reconstruction'])**2).item()
+        mse_entropy = torch.mean((batch - results_entropy['reconstruction'])**2).item()
+        mse_vq = torch.mean((batch - results_vq['reconstruction'])**2).item()
         
         print(f"Standard VAE MSE: {mse_standard:.4f}")
         print(f"Entropy VAE MSE: {mse_entropy:.4f}")

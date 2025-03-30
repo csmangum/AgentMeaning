@@ -5,7 +5,93 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.7] - 2025-03-30
+## [0.1.11]
+
+### Added
+
+#### Standardized Metrics Framework
+- Implemented `StandardizedMetrics` class extending `SemanticMetrics` with consistent evaluation methods
+- Defined clear operational definitions for preservation, fidelity, and drift metrics
+- Created feature importance-weighted metrics based on previous analysis (spatial: 55.4%, resources: 25.1%, etc.)
+- Added qualitative performance categories with thresholds (excellent, good, acceptable, poor, critical)
+- Implemented standardized feature groups for consistent evaluation across experiments
+- Enhanced drift tracking with baseline comparison capabilities
+- Updated `Trainer` class to use standardized metrics throughout
+- Modified compression experiments to leverage the standardized metrics system
+- Created comprehensive documentation with mathematical formulations
+- Removed legacy compatibility layers in favor of standardized evaluation
+
+## [0.1.10]
+
+### Added
+
+#### Feature Importance Analysis System
+- Implemented `FeatureImportanceAnalyzer` class for evaluating feature contributions to agent state meaning
+- Added support for analyzing importance based on behavior vectors and outcomes
+- Created visualization tools for feature importance with detailed group-level breakdown
+- Integrated importance analysis with standardized metrics for weighted evaluation
+- Added drift analysis capabilities with importance-weighted metrics
+- Implemented feature group weighting calculation based on importance scores
+- Created examples demonstrating feature importance analysis workflow
+- Added database integration for loading and analyzing real agent state data
+- Enhanced visualization outputs with detailed importance breakdowns
+- Implemented customizable feature group categorization
+- Created comprehensive documentation for the feature importance API
+
+## [0.1.9]
+
+### Added
+
+#### Graph-Based Agent State Representation Integration
+- Enhanced `MeaningVAE` to support both vector-based and graph-based inputs
+- Added graph conversion methods to `AgentState` class for transforming states to knowledge graphs
+- Updated `AgentStateDataset` with graph batching functionality and multi-agent graph creation
+- Modified training pipeline in `Trainer` class to handle graph data processing
+- Implemented specialized semantic drift tracking for graph representations
+- Added graph-specific visualization tools for latent space exploration
+- Integrated PyTorch Geometric support for efficient graph neural network operations
+- Created seamless transition between vector and graph representations
+- Added configuration options for controlling graph model parameters
+- Enhanced checkpointing and visualization for graph-based models
+
+## [0.1.8]
+
+### Added
+
+#### Knowledge Graph & Graph Neural Network Implementation
+- Implemented `AgentStateToGraph` converter for transforming agent states into knowledge graphs
+- Created `GraphEncoder` and `GraphDecoder` for processing graph-structured agent data
+- Added `VGAE` (Variational Graph Autoencoder) for graph-based compression
+- Implemented `GraphCompressionModel` combining VGAE with semantic preservation techniques
+- Created specialized loss functions with `GraphVAELoss` and `GraphSemanticLoss`
+- Added PyTorch Geometric integration for efficient graph neural network operations
+- Implemented NetworkX integration for knowledge graph construction and manipulation
+- Created `KnowledgeGraphDataset` for handling collections of agent state graphs
+
+#### Interactive Visualization & Explainability
+- Implemented `AgentStateDashboard` for interactive exploration of agent states
+- Created `LatentSpaceExplorer` for visualizing and traversing latent representations
+- Added support for interactive graph visualization with Dash and Cytoscape
+- Implemented `GraphVisualizer` and `LatentSpaceVisualizer` for advanced data exploration
+- Created `ModelExplainer` for interpreting model decisions and important features
+- Added support for visualizing feature importance and node attributions in agent graphs
+- Implemented dashboard for real-time monitoring of agent state compression
+
+#### State Detail Experimentation
+- Added infrastructure for systematic experimentation with agent state compositions
+- Implemented tooling for analyzing impact of state detail granularity on meaning preservation
+- Created framework for testing different weighting strategies across property combinations
+- Added support for analyzing categorical vs. continuous property distributions
+- Implemented utilities for measuring knowledge graph density effects on semantic preservation
+- Created examples showing usage of new graph-based agent state representation
+
+#### Package Configuration
+- Expanded package imports in `__init__.py` with new components
+- Updated project documentation with enhanced module descriptions
+- Added new dependencies including networkx, torch-geometric, rdflib, dash, and XAI libraries
+- Created example scripts demonstrating knowledge graph and dashboard functionality
+
+## [0.1.7]
 
 ### Added
 
@@ -22,7 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed dimension compatibility issues between grouped features
 - Added detailed documentation on adaptive architecture usage
 
-## [0.1.6] - 2025-03-29
+## [0.1.6]
 
 ### Added
 
@@ -48,7 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed visualization compatibility issues for different matplotlib versions
 - Added multi-dimensional feature handling for feature comparison plots
 
-## [0.1.5] - 2025-03-28
+## [0.1.5]
 
 ### Added
 
@@ -69,7 +155,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added test scripts for validating all metrics components
 - Fixed t-SNE visualization for small sample sizes
 
-## [0.1.4] - 2025-03-27
+## [0.1.4]
 
 ### Added
 
@@ -88,7 +174,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added visualization of feature-specific semantic loss breakdown
 - Created detailed documentation on training infrastructure usage
 
-## [0.1.3] - 2025-03-27
+## [0.1.3]
 
 ### Added
 
@@ -105,7 +191,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed tensor detachment issues for proper loss tracking
 - Added semantic breakdown logging for monitoring meaning preservation during training
 
-## [0.1.2] - 2025-03-27
+## [0.1.2]
 
 ### Added
 
@@ -120,7 +206,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added documentation in `MODEL_README.md` explaining architecture and usage
 - Fixed batch normalization issues for single-sample inference
 
-## [0.1.1] - 2025-03-27
+## [0.1.1]
 
 ### Added
 
@@ -134,7 +220,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Developed `test_data_loading.py` for validating data handling features
 - Updated project README with data handling usage examples
 
-## [0.1.0] - 2025-03-27
+## [0.1.0]
 
 ### Added
 

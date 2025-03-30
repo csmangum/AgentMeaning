@@ -9,6 +9,7 @@ This module handles:
 2. Serialization/deserialization of agent states
 3. Data loading and batching for training
 4. Loading real agent states from simulation database
+5. Conversion between agent states and graph representations
 """
 
 import json
@@ -16,13 +17,19 @@ import pickle
 import random
 import sqlite3
 import struct
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import networkx as nx
 import numpy as np
 import torch
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from torch_geometric.data import Batch, Data
+
+# Try to import graph-related utilities
+try:
+    from .knowledge_graph import AgentStateToGraph
+except ImportError:
+    AgentStateToGraph = None
+    deserialize_knowledge_graph = None
 
 
 class AgentState:
@@ -196,7 +203,9 @@ class AgentState:
 
         # Current health (1 feature)
         features.append(
-            self.current_health if self.current_health is not None else (self.health if self.health is not None else 1.0)
+            self.current_health
+            if self.current_health is not None
+            else (self.health if self.health is not None else 1.0)
         )
 
         # Is defending (1 feature)
@@ -223,12 +232,12 @@ class AgentState:
     @classmethod
     def from_tensor(cls, tensor: torch.Tensor) -> "AgentState":
         """Convert tensor representation back to agent state.
-        
+
         This is the inverse of to_tensor method.
-        
+
         Args:
             tensor: Tensor representation of agent state
-            
+
         Returns:
             Reconstructed AgentState object
         """
@@ -237,35 +246,35 @@ class AgentState:
             features = tensor.tolist()
         else:
             features = tensor
-            
+
         # Extract position (first 3 features)
         position = (features[0], features[1], features[2])
-        
+
         # Extract health and energy (next 2 features)
         health = features[3]
         energy = features[4]
-        
+
         # Extract resource level (next 1 feature)
         resource_level = features[5]
-        
+
         # Extract current health (next 1 feature)
         current_health = features[6]
-        
+
         # Extract is_defending (next 1 feature)
         is_defending = features[7] > 0.5
-        
+
         # Extract age (next 1 feature, denormalize)
         age = int(features[8] * 1000)
-        
+
         # Extract total reward (next 1 feature, denormalize)
         total_reward = features[9] * 100.0
-        
+
         # Extract role from one-hot encoding (next 5 features)
         roles = ["explorer", "gatherer", "defender", "attacker", "builder"]
         role_features = features[10:15]
         role_index = role_features.index(max(role_features))
         role = roles[role_index]
-        
+
         # Create agent state with extracted features
         return cls(
             position=position,
@@ -276,42 +285,42 @@ class AgentState:
             current_health=current_health,
             is_defending=is_defending,
             age=age,
-            total_reward=total_reward
+            total_reward=total_reward,
         )
 
     @classmethod
     def from_db_record(cls, record: Dict[str, Any]) -> "AgentState":
         """Create an agent state from a database record.
-        
+
         Maps fields from the AgentStateModel database schema to AgentState properties.
-        
+
         Args:
             record: Dictionary of field values from the database
-            
+
         Returns:
             AgentState object initialized with database record values
         """
         # The AgentStateModel schema has these fields:
         # id, simulation_id, step_number, agent_id, position_x, position_y, position_z,
         # resource_level, current_health, is_defending, total_reward, age
-        
+
         # Create 3D position tuple from x, y, z coordinates
         position = (
             record.get("position_x", 0.0),
             record.get("position_y", 0.0),
             record.get("position_z", 0.0),
         )
-        
+
         # Set health to current_health or default to 1.0
         health = record.get("current_health", 1.0)
-        
+
         # Set energy to resource_level (equivalent concept) or default to 1.0
         energy = record.get("resource_level", 1.0)
-        
+
         # Determine role based on agent properties
         # In this case, we're using a simple rule based on is_defending flag
         role = "defender" if record.get("is_defending", False) else "explorer"
-        
+
         return cls(
             position=position,
             health=health,
@@ -326,30 +335,110 @@ class AgentState:
             role=role,
             # Add inventory and goals as empty defaults
             inventory={},
-            goals=[]
+            goals=[],
         )
 
     def get_feature_names(self) -> List[str]:
         """Return names of features in the tensor representation.
-        
+
         Returns:
             List of feature names in the same order as the tensor representation
         """
         # Position features
-        features = ['position_x', 'position_y', 'position_z']
-        
+        features = ["position_x", "position_y", "position_z"]
+
         # Health and energy
-        features.extend(['health', 'energy'])
-        
+        features.extend(["health", "energy"])
+
         # Other numeric features
-        features.extend(['resource_level', 'current_health', 'is_defending', 'age', 'total_reward'])
-        
+        features.extend(
+            ["resource_level", "current_health", "is_defending", "age", "total_reward"]
+        )
+
         # Role one-hot features
         roles = ["explorer", "gatherer", "defender", "attacker", "builder"]
-        role_features = [f'role_{role}' for role in roles]
+        role_features = [f"role_{role}" for role in roles]
         features.extend(role_features)
-        
+
         return features
+
+    def to_graph(self, include_relations: bool = True) -> nx.Graph:
+        """
+        Convert this agent state to a knowledge graph representation.
+
+        Args:
+            include_relations: Whether to include relations to other entities
+
+        Returns:
+            G: NetworkX graph representing the agent state
+        """
+        if AgentStateToGraph is None:
+            raise ImportError("knowledge_graph module not available")
+
+        converter = AgentStateToGraph(
+            include_relations=include_relations, property_as_node=True
+        )
+        return converter.agent_to_graph(self)
+
+    def to_torch_geometric(self, include_relations: bool = True) -> Data:
+        """
+        Convert this agent state to a PyTorch Geometric Data object.
+
+        Args:
+            include_relations: Whether to include relations to other entities
+
+        Returns:
+            data: PyTorch Geometric Data object
+        """
+        if AgentStateToGraph is None:
+            raise ImportError("knowledge_graph module not available")
+
+        converter = AgentStateToGraph(
+            include_relations=include_relations, property_as_node=True
+        )
+        nx_graph = converter.agent_to_graph(self)
+        return converter.to_torch_geometric(nx_graph)
+
+    @classmethod
+    def from_graph(cls, graph: nx.Graph) -> "AgentState":
+        """
+        Reconstruct agent state from graph representation.
+
+        Args:
+            graph: NetworkX graph representing agent state
+
+        Returns:
+            agent: Reconstructed AgentState
+        """
+        # Extract agent node (should be the only node with type='agent')
+        agent_nodes = [
+            n for n, attr in graph.nodes(data=True) if attr.get("type") == "agent"
+        ]
+        if not agent_nodes:
+            raise ValueError("No agent node found in graph")
+
+        agent_node = agent_nodes[0]
+        agent_id = graph.nodes[agent_node].get("label", "unknown")
+
+        # Initialize with default values
+        agent_data = {
+            "agent_id": agent_id,
+            "position": (0.0, 0.0, 0.0),
+            "health": 1.0,
+            "energy": 1.0,
+        }
+
+        # Extract properties from graph
+        for neighbor in graph.neighbors(agent_node):
+            if graph.nodes[neighbor].get("type") == "property":
+                prop_name = graph.nodes[neighbor].get("name")
+                prop_value = graph.nodes[neighbor].get("value")
+
+                if prop_name:
+                    agent_data[prop_name] = prop_value
+
+        # Create agent state from extracted data
+        return cls(**agent_data)
 
 
 class AgentStateDataset:
@@ -370,9 +459,7 @@ class AgentStateDataset:
     def get_batch(self) -> torch.Tensor:
         """Get a batch of agent states as tensors."""
         if not self.states:
-            raise ValueError(
-                "Dataset is empty. Load data from database first."
-            )
+            raise ValueError("Dataset is empty. Load data from database first.")
 
         if self._current_idx >= len(self.states):
             self._current_idx = 0
@@ -408,7 +495,7 @@ class AgentStateDataset:
                 total_reward, age
             FROM agent_states
         """
-        
+
         # Add ordering and limit if specified
         query += " ORDER BY step_number"
         if limit:
@@ -417,32 +504,128 @@ class AgentStateDataset:
         try:
             # Execute query
             cursor.execute(query)
-            
+
             # Convert results to AgentState objects
             self.states = [
                 AgentState.from_db_record(dict(row)) for row in cursor.fetchall()
             ]
-            
+
             conn.close()
             print(f"Loaded {len(self.states)} agent states from database")
-            
+
         except Exception as e:
             conn.close()
             raise RuntimeError(f"Error loading agent states: {e}")
-            
+
     def load_from_file(self, file_path: str) -> None:
         """
         Load agent states from a pickle file.
-        
+
         Args:
             file_path: Path to the pickle file containing agent states
         """
         try:
-            with open(file_path, 'rb') as f:
-                self.states = pickle.load(f)
+            with open(file_path, "rb") as f:
+                data = f.read()
+                self.states = deserialize_states(data)
             print(f"Loaded {len(self.states)} agent states from file")
         except Exception as e:
             raise RuntimeError(f"Error loading agent states from file: {e}")
+
+    def to_graph_dataset(self) -> List[Data]:
+        """
+        Convert agent state dataset to a list of graph data objects.
+
+        Returns:
+            graph_dataset: List of PyTorch Geometric Data objects
+        """
+        if AgentStateToGraph is None:
+            raise ImportError("knowledge_graph module not available")
+
+        converter = AgentStateToGraph(include_relations=True, property_as_node=True)
+
+        graph_dataset = []
+        for agent in self.states:
+            nx_graph = converter.agent_to_graph(agent)
+            graph_data = converter.to_torch_geometric(nx_graph)
+            graph_dataset.append(graph_data)
+
+        return graph_dataset
+
+    def to_multi_agent_graph(self, max_agents: Optional[int] = None) -> Data:
+        """
+        Convert multiple agent states to a single connected graph.
+
+        Args:
+            max_agents: Maximum number of agents to include (None for all)
+
+        Returns:
+            graph_data: PyTorch Geometric Data object representing the multi-agent graph
+        """
+        if AgentStateToGraph is None:
+            raise ImportError("knowledge_graph module not available")
+
+        converter = AgentStateToGraph(include_relations=True, property_as_node=True)
+
+        # Limit number of agents if specified
+        agents_to_convert = self.states
+        if max_agents is not None:
+            agents_to_convert = agents_to_convert[:max_agents]
+
+        # Convert to multi-agent graph
+        nx_graph = converter.agents_to_graph(agents_to_convert)
+
+        # Convert to PyTorch Geometric Data
+        return converter.to_torch_geometric(nx_graph)
+
+    def get_graph_batch(self, batch_size: Optional[int] = None) -> Union[Batch, Data]:
+        """
+        Get a batch of graph data objects or a multi-agent graph.
+
+        Args:
+            batch_size: Number of agents to include in the batch (None for all)
+
+        Returns:
+            batch: PyTorch Geometric Batch object or multi-agent graph
+        """
+        if batch_size is None:
+            batch_size = self.batch_size
+
+        # If batch size is 1, just return a single agent graph
+        if batch_size == 1:
+            agent = self.states[self._current_idx]
+            self._current_idx = (self._current_idx + 1) % len(self.states)
+            return agent.to_torch_geometric()
+
+        # If more than one but less than threshold, create multi-agent graph
+        if batch_size <= 10:  # Threshold for multi-agent graph
+            end_idx = min(self._current_idx + batch_size, len(self.states))
+            agents_batch = self.states[self._current_idx : end_idx]
+
+            # Update current index
+            self._current_idx = end_idx
+            if self._current_idx >= len(self.states):
+                self._current_idx = 0
+
+            # Convert to multi-agent graph
+            return self.to_multi_agent_graph(max_agents=batch_size)
+
+        # For larger batches, create separate graphs and batch them
+        end_idx = min(self._current_idx + batch_size, len(self.states))
+        agents_batch = self.states[self._current_idx : end_idx]
+
+        # Update current index
+        self._current_idx = end_idx
+        if self._current_idx >= len(self.states):
+            self._current_idx = 0
+
+        # Convert each agent to a graph and batch
+        graph_list = []
+        for agent in agents_batch:
+            graph_data = agent.to_torch_geometric()
+            graph_list.append(graph_data)
+
+        return Batch.from_data_list(graph_list)
 
 
 # Helper functions
@@ -495,3 +678,95 @@ def load_from_simulation_db(
     dataset = AgentStateDataset()
     dataset.load_from_db(db_path, limit)
     return dataset.states
+
+
+def generate_agent_states(count: int = 10, random_seed: int = None) -> List[AgentState]:
+    """Generate synthetic agent states for testing and development.
+
+    Args:
+        count: Number of agent states to generate
+        random_seed: Optional seed for reproducibility
+
+    Returns:
+        List of synthetic AgentState objects
+    """
+    if random_seed is not None:
+        random.seed(random_seed)
+        np.random.seed(random_seed)
+
+    roles = ["explorer", "gatherer", "defender", "attacker", "builder"]
+    goal_options = [
+        "find_resources",
+        "gather_materials",
+        "defend_base",
+        "attack_enemy",
+        "build_structure",
+        "explore_territory",
+        "heal_allies",
+        "upgrade_equipment",
+    ]
+
+    states = []
+    for i in range(count):
+        # Generate random position
+        position = (
+            random.uniform(-100, 100),  # x
+            random.uniform(-100, 100),  # y
+            random.uniform(-10, 10),  # z
+        )
+
+        # Generate random health and energy
+        health = random.uniform(0.1, 1.0)
+        energy = random.uniform(0.2, 1.0)
+
+        # Generate random inventory
+        inventory_items = ["wood", "stone", "metal", "food", "tools", "weapons"]
+        inventory = {
+            item: random.randint(0, 20)
+            for item in inventory_items
+            if random.random() > 0.5
+        }
+
+        # Select random role and goals
+        role = random.choice(roles)
+        num_goals = random.randint(1, 3)
+        goals = random.sample(goal_options, num_goals)
+
+        # Generate other properties
+        agent_id = f"agent_{i}"
+        step_number = random.randint(0, 1000)
+        resource_level = random.uniform(0.0, 1.0)
+        current_health = min(health, random.uniform(0.0, health))
+        is_defending = random.random() > 0.7
+        age = random.randint(0, 500)
+        total_reward = random.uniform(-50, 100)
+
+        # Create agent state with additional random properties
+        additional_props = {}
+        if random.random() > 0.5:
+            additional_props["speed"] = random.uniform(0.5, 2.0)
+        if random.random() > 0.7:
+            additional_props["skill_level"] = random.randint(1, 10)
+        if random.random() > 0.8:
+            additional_props["team"] = random.choice(["red", "blue", "green"])
+
+        state = AgentState(
+            position=position,
+            health=health,
+            energy=energy,
+            inventory=inventory,
+            role=role,
+            goals=goals,
+            agent_id=agent_id,
+            step_number=step_number,
+            resource_level=resource_level,
+            current_health=current_health,
+            is_defending=is_defending,
+            age=age,
+            total_reward=total_reward,
+            **additional_props,
+        )
+
+        states.append(state)
+
+    return states

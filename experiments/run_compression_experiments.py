@@ -32,11 +32,12 @@ import torch
 project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
-from src.config import Config
-from src.data import AgentState, AgentStateDataset
-from src.metrics import SemanticMetrics, compute_feature_drift
-from src.model import MeaningVAE
-from src.train import Trainer
+from meaning_transform.src.config import Config
+from meaning_transform.src.data import AgentState, AgentStateDataset
+from meaning_transform.src.metrics import compute_feature_drift
+from meaning_transform.src.model import MeaningVAE
+from meaning_transform.src.standardized_metrics import StandardizedMetrics
+from meaning_transform.src.train import Trainer
 
 
 class CompressionExperiment:
@@ -194,14 +195,22 @@ class CompressionExperiment:
         dataset = AgentStateDataset(batch_size=self.base_config.training.batch_size)
 
         # Load real data from database
-        db_path = self.base_config.data.db_path if hasattr(self.base_config.data, 'db_path') else "simulation.db"
+        db_path = (
+            self.base_config.data.db_path
+            if hasattr(self.base_config.data, "db_path")
+            else "simulation.db"
+        )
         if not os.path.exists(db_path):
-            raise FileNotFoundError(f"Database file {db_path} not found. Please create a simulation database first.")
-            
+            raise FileNotFoundError(
+                f"Database file {db_path} not found. Please create a simulation database first."
+            )
+
         print(f"Loading agent states from {db_path}...")
         dataset.load_from_db(db_path, limit=self.base_config.data.num_states)
         if not dataset.states:
-            raise ValueError("No states loaded from database. Please check that your database contains agent state data.")
+            raise ValueError(
+                "No states loaded from database. Please check that your database contains agent state data."
+            )
 
         # Split into train and validation sets
         total_states = len(dataset.states)
@@ -271,382 +280,363 @@ class CompressionExperiment:
 
     def _analyze_results(self):
         """
-        Analyze experiment results and create visualizations and reports.
+        Analyze results of all compression experiments.
+        
+        This includes:
+        1. Creating comparative visualizations
+        2. Generating summary metrics
+        3. Creating a comprehensive report
         """
-        print("\nAnalyzing experimental results...")
-
-        # Collect metrics from each experiment
-        metrics = {
-            "compression_level": [],
-            "val_loss": [],
-            "recon_loss": [],
-            "kl_loss": [],
-            "semantic_loss": [],
-            "compression_loss": [],
-            "semantic_drift": [],
-            "model_size_kb": [],
-        }
-
-        # Analyze each model
-        for level, result in self.results.items():
-            model_path = result["model_path"]
-            if not os.path.exists(model_path):
-                print(f"Warning: Model file not found: {model_path}")
-                continue
-
-            # Collect basic metrics
-            metrics["compression_level"].append(level)
-            metrics["val_loss"].append(result["val_loss"])
-            metrics["recon_loss"].append(result["recon_loss"])
-            metrics["kl_loss"].append(result["kl_loss"])
-            metrics["semantic_loss"].append(result["semantic_loss"])
-            metrics["compression_loss"].append(result["compression_loss"])
-
-            # Get model size
-            model_size_kb = os.path.getsize(model_path) / 1024
-            metrics["model_size_kb"].append(model_size_kb)
-
-            # Load the model to analyze semantic drift
-            config = self._create_config_for_level(level)
-            model_found = False
-            semantic_drift = 0.5  # Default placeholder value
-
-            if os.path.exists(model_path):
-                try:
-                    model = MeaningVAE(
-                        input_dim=config.model.input_dim,
-                        latent_dim=config.model.latent_dim,
-                        compression_type=config.model.compression_type,
-                        compression_level=level,
-                    )
-                    model.load(model_path)
-
-                    # Evaluate semantic drift
-                    semantic_drift = self._evaluate_semantic_drift(model)
-                    model_found = True
-                except Exception as e:
-                    print(f"Error loading model for compression level {level}: {e}")
-                    semantic_drift = 0.5  # Default value on error
-            else:
-                print(
-                    f"Warning: Model file not found for compression level {level}: {model_path}"
-                )
-                # Use training drift value if available
-                if "semantic_drift" in result:
-                    semantic_drift = result["semantic_drift"]
-
-            metrics["semantic_drift"].append(semantic_drift)
-
-            print(
-                f"Compression level {level}: Val Loss = {metrics['val_loss'][-1]:.4f}, "
-                f"Semantic Drift = {semantic_drift:.4f}, "
-                f"Model Size = {model_size_kb:.1f} KB"
-            )
-
-        # Create a DataFrame with the results
-        results_df = pd.DataFrame(metrics)
-        results_df.to_csv(self.metrics_dir / "compression_results.csv", index=False)
-
+        print("\nAnalyzing compression experiment results...")
+        
+        # Create a DataFrame from results
+        results_data = []
+        for level, metrics in self.results.items():
+            row = {
+                "compression_level": level,
+                "val_loss": metrics["val_loss"],
+                "recon_loss": metrics["recon_loss"],
+                "kl_loss": metrics["kl_loss"],
+                "semantic_loss": metrics["semantic_loss"],
+                "compression_loss": metrics.get("compression_loss", 0.0),
+            }
+            
+            # Add the standardized metrics
+            semantic_drift = metrics["semantic_drift"]
+            row.update({
+                "overall_drift": semantic_drift["overall_drift"],
+                "preservation_score": semantic_drift["preservation"],
+                "fidelity_score": semantic_drift["fidelity"],
+                "drift_category": semantic_drift["drift_category"],
+                "spatial_drift": semantic_drift["spatial_drift"],
+                "resources_drift": semantic_drift["resources_drift"],
+                "performance_drift": semantic_drift["performance_drift"],
+                "role_drift": semantic_drift["role_drift"],
+            })
+            
+            results_data.append(row)
+        
+        # Create DataFrame and sort by compression level
+        results_df = pd.DataFrame(results_data)
+        results_df = results_df.sort_values("compression_level")
+        
+        # Save results to CSV
+        results_csv_path = self.metrics_dir / "compression_results.csv"
+        results_df.to_csv(results_csv_path, index=False)
+        print(f"Saved results to {results_csv_path}")
+        
         # Create visualizations
         self._create_visualizations(results_df)
-
+        
         # Generate report
         self._generate_report(results_df)
 
-    def _evaluate_semantic_drift(self, model: MeaningVAE) -> float:
+    def _evaluate_semantic_drift(self, model: MeaningVAE) -> Dict[str, Any]:
         """
-        Evaluate semantic drift for a model using the drift tracking states.
+        Evaluate semantic drift for a given model.
 
         Args:
-            model: The model to evaluate
+            model: Trained model to evaluate
 
         Returns:
-            Average semantic drift score
+            Dictionary of semantic drift metrics
         """
-        device = torch.device(
-            "cuda" if torch.cuda.is_available() and self.base_config.use_gpu else "cpu"
-        )
-        model.to(device)
-        model.eval()
+        # Create standardized metrics instance
+        metrics = StandardizedMetrics()
 
-        semantic_metrics = SemanticMetrics()
+        # Apply model to drift tracking states
+        original_tensors = []
+        reconstructed_tensors = []
 
-        # Get the drift tracking states
-        drift_states = (
-            self.results.get(model.compression_level, {})
-            .get("training_results", {})
-            .get("drift_tracking_states", [])
-        )
-
-        if not drift_states:
-            # If drift states aren't in results, use the base ones or create new ones
-            try:
-                dataset = self._prepare_data()
-                drift_states = dataset["drift_tracking"]
-            except Exception as e:
-                print(f"Error preparing drift tracking data: {e}")
-                return 0.5  # Return a default value if we can't get drift states
-
-        # Ensure we have at least some states to evaluate
-        if not drift_states:
-            print("Warning: No drift tracking states available for evaluation")
-            return 0.5
-
-        # Compute drift for all states
-        total_drift = 0.0
-        count = 0
-
-        try:
+        # Process states
+        for state in self.drift_tracking_states:
+            # Convert to tensor
+            x = state.to_tensor().unsqueeze(0)
+            
+            # Move to device
+            x = x.to(model.device)
+            
+            # Run through model
             with torch.no_grad():
-                for state in drift_states:
-                    # Convert state to tensor
-                    tensor = state.to_tensor().unsqueeze(0).to(device)
-
-                    # Run through the model
-                    result = model(tensor)
-                    reconstructed = result["x_reconstructed"][0].cpu()
-
-                    # Convert back to agent state
-                    reconstructed_state = AgentState.from_tensor(reconstructed)
-
-                    # Compute semantic drift
-                    feature_drift = compute_feature_drift(state, reconstructed_state)
-
-                    # Average drift across features
-                    avg_drift = sum(feature_drift.values()) / len(feature_drift)
-                    total_drift += avg_drift
-                    count += 1
-
-            return total_drift / max(1, count)
-        except Exception as e:
-            print(f"Error computing semantic drift: {e}")
-            return 0.5  # Return a default value on error
+                recon_x, _, _ = model(x)
+            
+            # Add to lists for batch evaluation
+            original_tensors.append(x)
+            reconstructed_tensors.append(recon_x)
+            
+        # Concatenate tensors
+        originals = torch.cat(original_tensors, dim=0)
+        reconstructions = torch.cat(reconstructed_tensors, dim=0)
+        
+        # Use standardized metrics to comprehensively evaluate the model
+        evaluation_results = metrics.evaluate(originals, reconstructions)
+        
+        # Extract the key metrics we're interested in for experiments
+        semantic_drift = {
+            "overall_drift": evaluation_results["drift"]["overall_drift"],
+            "preservation": evaluation_results["preservation"]["overall_preservation"],
+            "fidelity": evaluation_results["fidelity"]["overall_fidelity"],
+            "drift_category": evaluation_results["drift"]["drift_category"],
+            "spatial_drift": evaluation_results["drift"].get("spatial_drift", 0.0),
+            "resources_drift": evaluation_results["drift"].get("resources_drift", 0.0),
+            "performance_drift": evaluation_results["drift"].get("performance_drift", 0.0),
+            "role_drift": evaluation_results["drift"].get("role_drift", 0.0)
+        }
+        
+        return semantic_drift
 
     def _create_visualizations(self, results_df: pd.DataFrame):
         """
-        Create visualizations for the experiment results.
-
+        Create visualizations for comparison across compression levels.
+        
         Args:
-            results_df: DataFrame with experiment results
+            results_df: DataFrame containing experiment results
         """
-        # Check if we have data to visualize
-        if results_df.empty:
-            print("No data to visualize. Skipping visualization creation.")
-            return
-
-        # 1. Plot Val Loss vs Compression Level
-        plt.figure(figsize=(10, 6))
-        plt.plot(
-            results_df["compression_level"], results_df["val_loss"], "o-", linewidth=2
-        )
-        plt.title("Validation Loss vs Compression Level")
+        # Create the main comparison plot
+        plt.figure(figsize=(15, 10))
+        
+        # Plot 1: Overall drift vs Compression Level
+        plt.subplot(2, 2, 1)
+        plt.plot(results_df["compression_level"], results_df["overall_drift"], "r-o", linewidth=2)
         plt.xlabel("Compression Level")
-        plt.ylabel("Validation Loss")
+        plt.ylabel("Overall Semantic Drift")
+        plt.title("Semantic Drift vs. Compression Level")
         plt.grid(True)
-        plt.savefig(self.visualizations_dir / "val_loss_vs_compression.png")
-
-        # 2. Plot Semantic Drift vs Compression Level
-        plt.figure(figsize=(10, 6))
-        plt.plot(
-            results_df["compression_level"],
-            results_df["semantic_drift"],
-            "o-",
-            linewidth=2,
-            color="orange",
-        )
-        plt.title("Semantic Drift vs Compression Level")
+        
+        # Plot 2: Preservation Score vs Compression Level
+        plt.subplot(2, 2, 2)
+        plt.plot(results_df["compression_level"], results_df["preservation_score"], "g-o", linewidth=2)
         plt.xlabel("Compression Level")
-        plt.ylabel("Semantic Drift")
+        plt.ylabel("Meaning Preservation Score")
+        plt.title("Meaning Preservation vs. Compression Level")
         plt.grid(True)
-        plt.savefig(self.visualizations_dir / "semantic_drift_vs_compression.png")
-
-        # 3. Plot Model Size vs Compression Level
-        plt.figure(figsize=(10, 6))
-        plt.plot(
-            results_df["compression_level"],
-            results_df["model_size_kb"],
-            "o-",
-            linewidth=2,
-            color="green",
-        )
-        plt.title("Model Size vs Compression Level")
+        
+        # Plot 3: Feature-specific drift scores
+        plt.subplot(2, 2, 3)
+        plt.plot(results_df["compression_level"], results_df["spatial_drift"], "r-o", label="Spatial")
+        plt.plot(results_df["compression_level"], results_df["resources_drift"], "g-o", label="Resources")
+        plt.plot(results_df["compression_level"], results_df["performance_drift"], "b-o", label="Performance")
+        plt.plot(results_df["compression_level"], results_df["role_drift"], "m-o", label="Role")
         plt.xlabel("Compression Level")
-        plt.ylabel("Model Size (KB)")
-        plt.grid(True)
-        plt.savefig(self.visualizations_dir / "model_size_vs_compression.png")
-
-        # 4. Multi-metric comparison
-        plt.figure(figsize=(12, 8))
-
-        # Normalize metrics for comparison
-        max_val_loss = (
-            max(results_df["val_loss"]) if len(results_df["val_loss"]) > 0 else 1
-        )
-        max_semantic_drift = (
-            max(results_df["semantic_drift"])
-            if len(results_df["semantic_drift"]) > 0
-            else 1
-        )
-        max_model_size = (
-            max(results_df["model_size_kb"])
-            if len(results_df["model_size_kb"]) > 0
-            else 1
-        )
-
-        plt.plot(
-            results_df["compression_level"],
-            results_df["val_loss"] / max_val_loss,
-            "o-",
-            linewidth=2,
-            label="Normalized Val Loss",
-        )
-        plt.plot(
-            results_df["compression_level"],
-            results_df["semantic_drift"] / max_semantic_drift,
-            "o-",
-            linewidth=2,
-            label="Normalized Semantic Drift",
-        )
-        plt.plot(
-            results_df["compression_level"],
-            results_df["model_size_kb"] / max_model_size,
-            "o-",
-            linewidth=2,
-            label="Normalized Model Size",
-        )
-
-        plt.title("Normalized Metrics vs Compression Level")
-        plt.xlabel("Compression Level")
-        plt.ylabel("Normalized Value")
+        plt.ylabel("Feature Group Drift")
+        plt.title("Feature-Specific Drift vs. Compression Level")
         plt.legend()
         plt.grid(True)
-        plt.savefig(self.visualizations_dir / "comparison_metrics_vs_compression.png")
+        
+        # Plot 4: Loss metrics
+        plt.subplot(2, 2, 4)
+        plt.plot(results_df["compression_level"], results_df["val_loss"], "k-o", label="Validation Loss")
+        plt.plot(results_df["compression_level"], results_df["recon_loss"], "b-o", label="Reconstruction Loss")
+        plt.plot(results_df["compression_level"], results_df["kl_loss"], "g-o", label="KL Loss")
+        plt.xlabel("Compression Level")
+        plt.ylabel("Loss Value")
+        plt.title("Training Losses vs. Compression Level")
+        plt.legend()
+        plt.grid(True)
+        
+        plt.tight_layout()
+        plt.savefig(self.visualizations_dir / "compression_comparison.png")
+        plt.close()
+        
+        # Create a radar chart to compare all metrics at different compression levels
+        self._create_radar_chart(results_df)
+        
+        # Create a drift category visualization
+        self._create_drift_category_chart(results_df)
 
-        print(f"Created visualizations in {self.visualizations_dir}")
+    def _create_radar_chart(self, results_df: pd.DataFrame):
+        """
+        Create a radar chart to compare all metrics at different compression levels.
+        
+        Args:
+            results_df: DataFrame containing experiment results
+        """
+        # Create a radar chart
+        fig, ax = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
+        
+        # Define the metrics to be plotted
+        metrics = ["overall_drift", "preservation_score", "fidelity_score", "spatial_drift", "resources_drift", "performance_drift", "role_drift"]
+        
+        # Define the colors for each metric
+        colors = plt.cm.get_cmap('viridis')(np.linspace(0, 1, len(metrics)))
+        
+        # Plot each metric
+        for i, metric in enumerate(metrics):
+            values = results_df[metric]
+            ax.plot(np.linspace(0, 2 * np.pi, len(values)), values, color=colors[i], label=metric)
+            ax.fill(np.linspace(0, 2 * np.pi, len(values)), values, color=colors[i], alpha=0.2)
+        
+        # Set the title and labels
+        ax.set_thetagrids(np.linspace(0, 2 * np.pi, len(metrics)), metrics)
+        ax.set_title("Comparison of Metrics Across Compression Levels")
+        
+        # Add legend
+        ax.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
+        
+        # Save the chart
+        plt.savefig(self.visualizations_dir / "radar_chart.png")
+        plt.close()
+
+    def _create_drift_category_chart(self, results_df: pd.DataFrame):
+        """
+        Create a drift category visualization for the experiment results.
+        
+        Args:
+            results_df: DataFrame containing experiment results
+        """
+        # Create a bar chart for drift categories
+        drift_categories = results_df["drift_category"].value_counts().index
+        counts = results_df["drift_category"].value_counts().values
+        
+        plt.figure(figsize=(10, 6))
+        plt.bar(drift_categories, counts)
+        plt.xlabel("Drift Category")
+        plt.ylabel("Count")
+        plt.title("Drift Category Distribution")
+        plt.savefig(self.visualizations_dir / "drift_category_distribution.png")
+        plt.close()
 
     def _generate_report(self, results_df: pd.DataFrame):
         """
-        Generate a comprehensive report on the compression experiments.
-
+        Generate a comprehensive report for the compression experiments.
+        
         Args:
-            results_df: DataFrame with experiment results
+            results_df: DataFrame containing experiment results
         """
-        # Check if we have data for the report
-        if results_df.empty:
-            print("No data to generate report. Creating minimal report.")
-            report = """
-# Compression Analysis Report
-
-## Overview
-No valid experiment results were available to analyze. 
-
-This could be due to:
-- Model files not being found
-- Errors during model evaluation
-- Insufficient training data
-
-Please check the experiment logs for details and try running the experiments again with:
-- Longer training (more epochs)
-- More training data (increase num-states)
-- GPU acceleration if available
-"""
-            # Save the minimal report
-            report_path = self.experiment_dir / "compression_analysis_report.md"
-            with open(report_path, "w") as f:
-                f.write(report)
-
-            print(f"Generated minimal report: {report_path}")
-            return report
-
-        # Find optimal compression level
-        # We want to minimize semantic drift while also considering model size
-        # Simple heuristic: lowest drift-to-size ratio
-        results_df["drift_size_ratio"] = (
-            results_df["semantic_drift"] / results_df["model_size_kb"]
-        )
-        optimal_idx = results_df["drift_size_ratio"].idxmin()
-        optimal_level = results_df.loc[optimal_idx, "compression_level"]
-
-        report = f"""
-# Compression Analysis Report
-
-## Overview
-This report analyzes the effects of different compression levels on the meaning-preserving transformation system.
-Experiments were conducted with compression levels: {list(self.compression_levels)}
-
-## Key Findings
-
-### Optimal Compression Setting
-Based on the balance between semantic preservation and model size, the optimal compression level is: **{optimal_level}**
-
-### Performance Metrics
-
-| Compression | Val Loss | Semantic Drift | Model Size (KB) |
-|-------------|----------|----------------|-----------------|
-"""
-
-        # Add a row for each compression level
-        for _, row in results_df.iterrows():
-            report += f"| {row['compression_level']:.1f} | {row['val_loss']:.4f} | {row['semantic_drift']:.4f} | {row['model_size_kb']:.1f} |\n"
-
-        report += """
-### Analysis
-
-#### Effect on Semantic Preservation
-"""
-
-        # Add analysis of semantic preservation
-        min_drift_idx = results_df["semantic_drift"].idxmin()
-        min_drift_level = results_df.loc[min_drift_idx, "compression_level"]
-        max_drift_idx = results_df["semantic_drift"].idxmax()
-        max_drift_level = results_df.loc[max_drift_idx, "compression_level"]
-
-        report += f"""
-The lowest semantic drift was observed at compression level {min_drift_level:.1f}, indicating the best semantic preservation.
-The highest semantic drift was observed at compression level {max_drift_level:.1f}.
-
-As compression level increases:
-- The semantic drift """
-
-        # Determine if drift increases or decreases with compression
-        first_drift = results_df.iloc[0]["semantic_drift"]
-        last_drift = results_df.iloc[-1]["semantic_drift"]
-        trend = "increases" if last_drift > first_drift else "decreases"
-        report += f"{trend}, showing that {'higher compression reduces meaning preservation' if trend == 'increases' else 'higher compression surprisingly improves meaning preservation'}.\n"
-
-        report += """
-#### Efficiency vs. Meaning Retention
-"""
-
-        # Add efficiency analysis
-        report += f"""
-The optimal balance between model size and semantic preservation is achieved at compression level {optimal_level:.1f}.
-This provides the best trade-off between information density and meaning retention.
-
-### Recommendations
-
-Based on these findings, we recommend:
-"""
-
-        # Add recommendations
-        if optimal_level == min(self.compression_levels):
-            report += f"- Using the lowest tested compression level ({optimal_level:.1f}) for applications where semantic fidelity is critical\n"
-            report += f"- Consider testing even lower compression levels for potential improvements\n"
-        elif optimal_level == max(self.compression_levels):
-            report += f"- Using the highest tested compression level ({optimal_level:.1f}) for applications where efficiency is prioritized\n"
-            report += f"- Consider testing even higher compression levels for potential further optimization\n"
-        else:
-            report += f"- Using the balanced compression level of {optimal_level:.1f} for most applications\n"
-            report += f"- Adjusting toward {min_drift_level:.1f} when meaning preservation is critical\n"
-            report += f"- Adjusting toward {max(self.compression_levels):.1f} when storage efficiency is paramount\n"
-
-        # Save the report
-        report_path = self.experiment_dir / "compression_analysis_report.md"
-        with open(report_path, "w") as f:
-            f.write(report)
-
-        print(f"Generated compression analysis report: {report_path}")
-        return report
+        report_file = self.experiment_dir / "compression_report.md"
+        
+        with open(report_file, "w") as f:
+            # Write header
+            f.write("# Compression Experiment Report\n\n")
+            f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            
+            # Write summary
+            f.write("## Summary\n\n")
+            f.write(f"Tested compression levels: {', '.join(map(str, self.compression_levels))}\n\n")
+            
+            # Find the best compression level based on combined metrics
+            # Lower drift, higher preservation, higher fidelity
+            results_df['combined_score'] = (
+                (1 - results_df['overall_drift']) * 0.4 + 
+                results_df['preservation_score'] * 0.3 + 
+                results_df['fidelity_score'] * 0.3
+            )
+            
+            best_level = results_df.loc[results_df['combined_score'].idxmax()]['compression_level']
+            f.write(f"**Best overall compression level: {best_level}**\n\n")
+            
+            # Create a summary table
+            f.write("## Results Summary\n\n")
+            f.write("| Compression Level | Overall Drift | Preservation | Fidelity | Drift Category |\n")
+            f.write("|-------------------|--------------|--------------|----------|----------------|\n")
+            
+            for _, row in results_df.sort_values('compression_level').iterrows():
+                f.write(f"| {row['compression_level']} | {row['overall_drift']:.4f} | {row['preservation_score']:.4f} | {row['fidelity_score']:.4f} | {row['drift_category']} |\n")
+            
+            f.write("\n")
+            
+            # Feature-specific analysis
+            f.write("## Feature-Specific Analysis\n\n")
+            f.write("### Spatial Features (55.4% importance)\n\n")
+            f.write("| Compression Level | Spatial Drift |\n")
+            f.write("|-------------------|---------------|\n")
+            for _, row in results_df.sort_values('compression_level').iterrows():
+                f.write(f"| {row['compression_level']} | {row['spatial_drift']:.4f} |\n")
+            
+            f.write("\n### Resource Features (25.1% importance)\n\n")
+            f.write("| Compression Level | Resources Drift |\n")
+            f.write("|-------------------|------------------|\n")
+            for _, row in results_df.sort_values('compression_level').iterrows():
+                f.write(f"| {row['compression_level']} | {row['resources_drift']:.4f} |\n")
+            
+            f.write("\n### Performance Features (10.5% importance)\n\n")
+            f.write("| Compression Level | Performance Drift |\n")
+            f.write("|-------------------|-------------------|\n")
+            for _, row in results_df.sort_values('compression_level').iterrows():
+                f.write(f"| {row['compression_level']} | {row['performance_drift']:.4f} |\n")
+            
+            f.write("\n### Role Features (<5% importance)\n\n")
+            f.write("| Compression Level | Role Drift |\n")
+            f.write("|-------------------|------------|\n")
+            for _, row in results_df.sort_values('compression_level').iterrows():
+                f.write(f"| {row['compression_level']} | {row['role_drift']:.4f} |\n")
+            
+            f.write("\n## Recommendations\n\n")
+            
+            # Find best compression level for each feature group
+            best_spatial = results_df.loc[results_df['spatial_drift'].idxmin()]['compression_level']
+            best_resources = results_df.loc[results_df['resources_drift'].idxmin()]['compression_level']
+            best_performance = results_df.loc[results_df['performance_drift'].idxmin()]['compression_level']
+            best_role = results_df.loc[results_df['role_drift'].idxmin()]['compression_level']
+            
+            f.write(f"- **Best for Spatial Features**: Compression Level {best_spatial}\n")
+            f.write(f"- **Best for Resource Features**: Compression Level {best_resources}\n")
+            f.write(f"- **Best for Performance Features**: Compression Level {best_performance}\n")
+            f.write(f"- **Best for Role Features**: Compression Level {best_role}\n\n")
+            
+            # Add detailed analysis for each compression level
+            f.write("## Detailed Analysis\n\n")
+            
+            for level in sorted(self.compression_levels):
+                level_data = results_df[results_df['compression_level'] == level]
+                
+                if level_data.empty:
+                    continue
+                    
+                row = level_data.iloc[0]
+                f.write(f"### Compression Level {level}\n\n")
+                
+                f.write("#### Metrics\n\n")
+                f.write(f"- **Overall Drift**: {row['overall_drift']:.4f}\n")
+                f.write(f"- **Preservation Score**: {row['preservation_score']:.4f}\n")
+                f.write(f"- **Fidelity Score**: {row['fidelity_score']:.4f}\n")
+                f.write(f"- **Drift Category**: {row['drift_category']}\n")
+                f.write(f"- **Validation Loss**: {row['val_loss']:.4f}\n")
+                f.write(f"- **Reconstruction Loss**: {row['recon_loss']:.4f}\n")
+                f.write(f"- **KL Loss**: {row['kl_loss']:.4f}\n\n")
+                
+                f.write("#### Feature-Specific Drift\n\n")
+                f.write(f"- **Spatial Drift**: {row['spatial_drift']:.4f}\n")
+                f.write(f"- **Resources Drift**: {row['resources_drift']:.4f}\n")
+                f.write(f"- **Performance Drift**: {row['performance_drift']:.4f}\n")
+                f.write(f"- **Role Drift**: {row['role_drift']:.4f}\n\n")
+                
+                # Analysis
+                f.write("#### Analysis\n\n")
+                
+                if row['overall_drift'] < 0.1:
+                    f.write("- Excellent semantic retention\n")
+                elif row['overall_drift'] < 0.2:
+                    f.write("- Good semantic retention\n")
+                elif row['overall_drift'] < 0.3:
+                    f.write("- Acceptable semantic retention\n")
+                else:
+                    f.write("- Poor semantic retention\n")
+                
+                if row['spatial_drift'] > row['resources_drift'] and row['spatial_drift'] > row['performance_drift']:
+                    f.write("- Spatial features show the highest drift\n")
+                elif row['resources_drift'] > row['spatial_drift'] and row['resources_drift'] > row['performance_drift']:
+                    f.write("- Resource features show the highest drift\n")
+                elif row['performance_drift'] > row['spatial_drift'] and row['performance_drift'] > row['resources_drift']:
+                    f.write("- Performance features show the highest drift\n")
+                
+                f.write("\n")
+            
+            # Conclusion
+            f.write("## Conclusion\n\n")
+            f.write("Based on the standardized metrics analysis, we can conclude that:\n\n")
+            
+            # Find the level with the best balance
+            balanced_level = results_df.loc[results_df['combined_score'].idxmax()]['compression_level']
+            
+            f.write(f"1. Compression level **{balanced_level}** provides the best balance between drift, preservation, and fidelity.\n")
+            f.write(f"2. Spatial features (55.4% importance) are most sensitive to compression, with best results at level {best_spatial}.\n")
+            f.write(f"3. Resource features (25.1% importance) are best preserved at compression level {best_resources}.\n")
+            f.write("4. The chosen compression level should prioritize maintaining spatial and resource feature integrity due to their higher importance weights.\n")
+            
+        print(f"Generated comprehensive report at {report_file}")
+        
+        return report_file
 
 
 def parse_args():

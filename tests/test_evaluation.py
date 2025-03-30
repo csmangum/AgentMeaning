@@ -2,23 +2,31 @@
 # -*- coding: utf-8 -*-
 
 """
-Simple test script to test the semantic evaluation metrics.
+Test evaluation methods for the meaning preservation model.
 """
 
 import os
+import sys
+from pathlib import Path
+
 import torch
 import numpy as np
-from src.model import MeaningVAE
-from src.metrics import (
+
+# Add the project root to the path
+project_root = str(Path(__file__).resolve().parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from meaning_transform.src.model import MeaningVAE
+from meaning_transform.src.metrics import (
     SemanticMetrics,
     DriftTracker,
     CompressionThresholdFinder,
     generate_t_sne_visualization
 )
 
-# Create output directory
+# Define output directory without creating it yet
 output_dir = "test_results/semantic_eval"
-os.makedirs(output_dir, exist_ok=True)
 
 # Create synthetic data directly - bypassing the data module's complexity
 def create_test_batch(batch_size=5, input_dim=50):
@@ -46,50 +54,63 @@ def create_test_batch(batch_size=5, input_dim=50):
     
     return batch
 
-# Generate synthetic data
-print("Creating synthetic data...")
-original_batch = create_test_batch(batch_size=5, input_dim=50)
-print("Original batch shape:", original_batch.shape)
+def run_evaluation_test():
+    """Run the semantic evaluation test."""
+    # Create output directory when test is explicitly run
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, "drift_tracking"), exist_ok=True)
+    
+    # Generate synthetic data
+    print("Creating synthetic data...")
+    original_batch = create_test_batch(batch_size=5, input_dim=50)
+    print("Original batch shape:", original_batch.shape)
 
-# Create a slightly altered reconstruction batch for testing
-reconstructed_batch = original_batch.clone()
+    # Create a slightly altered reconstruction batch for testing
+    reconstructed_batch = original_batch.clone()
 
-# Add some noise to the reconstruction to simulate compression artifacts
-print("Creating simulated reconstructed data...")
-perturbation = 0.1
-reconstructed_batch = original_batch + perturbation * torch.randn_like(original_batch)
-reconstructed_batch = torch.clamp(reconstructed_batch, 0, 1)
+    # Add some noise to the reconstruction to simulate compression artifacts
+    print("Creating simulated reconstructed data...")
+    perturbation = 0.1
+    reconstructed_batch = original_batch + perturbation * torch.randn_like(original_batch)
+    reconstructed_batch = torch.clamp(reconstructed_batch, 0, 1)
 
-# Initialize metrics
-print("Initializing metrics...")
-semantic_metrics = SemanticMetrics()
-drift_tracker = DriftTracker(log_dir=os.path.join(output_dir, "drift_tracking"))
-threshold_finder = CompressionThresholdFinder(semantic_threshold=0.9)
+    # Initialize metrics
+    print("Initializing metrics...")
+    semantic_metrics = SemanticMetrics()
+    drift_tracker = DriftTracker(log_dir=os.path.join(output_dir, "drift_tracking"))
+    threshold_finder = CompressionThresholdFinder(semantic_threshold=0.9)
 
-# Evaluate semantic preservation
-metrics = semantic_metrics.evaluate(original_batch, reconstructed_batch)
-print(f"Overall semantic score: {metrics['overall']:.4f}")
+    # Evaluate semantic preservation
+    metrics = semantic_metrics.evaluate(original_batch, reconstructed_batch)
+    print(f"Overall semantic score: {metrics['overall']:.4f}")
 
-# Detailed metric breakdown
-print("\nDetailed metrics:")
-for key, value in metrics.items():
-    if isinstance(value, float):  # Only print the scalar metrics
-        print(f"  {key}: {value:.4f}")
+    # Detailed metric breakdown
+    print("\nDetailed metrics:")
+    for key, value in metrics.items():
+        if isinstance(value, float):  # Only print the scalar metrics
+            print(f"  {key}: {value:.4f}")
 
-# Log drift metrics
-drift_metrics = drift_tracker.log_iteration(
-    iteration=0, 
-    compression_level=2.0, 
-    original=original_batch, 
-    reconstructed=reconstructed_batch
-)
+    # Log drift metrics
+    drift_metrics = drift_tracker.log_iteration(
+        iteration=0, 
+        compression_level=2.0, 
+        original=original_batch, 
+        reconstructed=reconstructed_batch
+    )
 
-# Generate visualization
-print("\nGenerating visualization...")
-drift_tracker.visualize_drift(os.path.join(output_dir, "drift_visualization.png"))
+    # Generate visualization
+    print("\nGenerating visualization...")
+    drift_tracker.visualize_drift(os.path.join(output_dir, "drift_visualization.png"))
 
-# Generate report
-print("Generating report...")
-report = drift_tracker.generate_report(os.path.join(output_dir, "drift_report.md"))
+    # Generate report
+    print("Generating report...")
+    report = drift_tracker.generate_report(os.path.join(output_dir, "drift_report.md"))
 
-print("\nTest completed. Check the test_results/semantic_eval directory for outputs.") 
+    print("\nTest completed. Check the test_results/semantic_eval directory for outputs.")
+
+# Only run the test when explicitly requested
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "--run-test":
+    run_evaluation_test()
+else:
+    print("Semantic evaluation test module loaded but not executed.")
+    print("To run this test explicitly, use: python test_evaluation.py --run-test") 

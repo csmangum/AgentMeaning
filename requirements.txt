@@ -25,4 +25,21 @@ pyyaml>=6.0
 # For development
 pytest>=6.2.0
 black>=21.5b0
-isort>=5.9.0 
+isort>=5.9.0
+
+# Graph libraries
+networkx>=2.6.0
+torch-geometric>=2.0.0
+
+# For knowledge graphs
+rdflib>=6.0.0
+
+# For XAI components
+shap>=0.40.0
+lime>=0.2.0
+captum>=0.4.0
+
+# For interactive visualization
+dash>=2.0.0
+dash-cytoscape>=0.2.0
+dash-bootstrap-components>=1.0.0 

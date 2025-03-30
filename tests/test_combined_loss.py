@@ -5,10 +5,19 @@
 Standalone test for the combined loss function.
 """
 
+import sys
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 import numpy as np
-from src.loss import CombinedLoss
+
+# Add the project root to the path
+project_root = str(Path(__file__).resolve().parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from meaning_transform.src.loss import CombinedLoss
 
 
 def test_combined_loss():
@@ -75,7 +84,7 @@ def test_combined_loss():
         
         # Create model output dictionary
         model_output = {
-            "x_reconstructed": x_reconstructed,
+            "reconstruction": x_reconstructed,
             "mu": mu,
             "log_var": log_var,
             "compression_loss": torch.tensor(0.1)

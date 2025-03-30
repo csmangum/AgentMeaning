@@ -9,6 +9,7 @@ This module handles:
 2. Serialization/deserialization of agent states
 3. Data loading and batching for training
 4. Loading real agent states from simulation database
+5. Conversion between agent states and graph representations
 """
 
 import json
@@ -23,6 +24,15 @@ import numpy as np
 import torch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+import networkx as nx
+from torch_geometric.data import Data, Batch
+
+# Try to import graph-related utilities
+try:
+    from .knowledge_graph import AgentStateToGraph, deserialize_knowledge_graph
+except ImportError:
+    AgentStateToGraph = None
+    deserialize_knowledge_graph = None
 
 
 class AgentState:
@@ -351,6 +361,84 @@ class AgentState:
         
         return features
 
+    def to_graph(self, include_relations: bool = True) -> nx.Graph:
+        """
+        Convert this agent state to a knowledge graph representation.
+        
+        Args:
+            include_relations: Whether to include relations to other entities
+            
+        Returns:
+            G: NetworkX graph representing the agent state
+        """
+        if AgentStateToGraph is None:
+            raise ImportError("knowledge_graph module not available")
+            
+        converter = AgentStateToGraph(
+            include_relations=include_relations,
+            property_as_node=True
+        )
+        return converter.agent_to_graph(self)
+    
+    def to_torch_geometric(self, include_relations: bool = True) -> Data:
+        """
+        Convert this agent state to a PyTorch Geometric Data object.
+        
+        Args:
+            include_relations: Whether to include relations to other entities
+            
+        Returns:
+            data: PyTorch Geometric Data object
+        """
+        if AgentStateToGraph is None:
+            raise ImportError("knowledge_graph module not available")
+            
+        converter = AgentStateToGraph(
+            include_relations=include_relations,
+            property_as_node=True
+        )
+        nx_graph = converter.agent_to_graph(self)
+        return converter.to_torch_geometric(nx_graph)
+    
+    @classmethod
+    def from_graph(cls, graph: nx.Graph) -> "AgentState":
+        """
+        Reconstruct agent state from graph representation.
+        
+        Args:
+            graph: NetworkX graph representing agent state
+            
+        Returns:
+            agent: Reconstructed AgentState
+        """
+        # Extract agent node (should be the only node with type='agent')
+        agent_nodes = [n for n, attr in graph.nodes(data=True) if attr.get('type') == 'agent']
+        if not agent_nodes:
+            raise ValueError("No agent node found in graph")
+        
+        agent_node = agent_nodes[0]
+        agent_id = graph.nodes[agent_node].get('label', 'unknown')
+        
+        # Initialize with default values
+        agent_data = {
+            "agent_id": agent_id,
+            "position": (0.0, 0.0, 0.0),
+            "health": 1.0,
+            "energy": 1.0
+        }
+        
+        # Extract properties from graph
+        for neighbor in graph.neighbors(agent_node):
+            if graph.nodes[neighbor].get('type') == 'property':
+                prop_name = graph.nodes[neighbor].get('name')
+                prop_value = graph.nodes[neighbor].get('value')
+                
+                if prop_name:
+                    agent_data[prop_name] = prop_value
+        
+        # Create agent state from extracted data
+        return cls(**agent_data)
+
 
 class AgentStateDataset:
     """Dataset for loading and batching agent states."""
@@ -443,6 +531,107 @@ class AgentStateDataset:
             print(f"Loaded {len(self.states)} agent states from file")
         except Exception as e:
             raise RuntimeError(f"Error loading agent states from file: {e}")
+
+    def to_graph_dataset(self) -> List[Data]:
+        """
+        Convert agent state dataset to a list of graph data objects.
+        
+        Returns:
+            graph_dataset: List of PyTorch Geometric Data objects
+        """
+        if AgentStateToGraph is None:
+            raise ImportError("knowledge_graph module not available")
+        
+        converter = AgentStateToGraph(
+            include_relations=True,
+            property_as_node=True
+        )
+        
+        graph_dataset = []
+        for agent in self.states:
+            nx_graph = converter.agent_to_graph(agent)
+            graph_data = converter.to_torch_geometric(nx_graph)
+            graph_dataset.append(graph_data)
+        
+        return graph_dataset
+    
+    def to_multi_agent_graph(self, max_agents: Optional[int] = None) -> Data:
+        """
+        Convert multiple agent states to a single connected graph.
+        
+        Args:
+            max_agents: Maximum number of agents to include (None for all)
+            
+        Returns:
+            graph_data: PyTorch Geometric Data object representing the multi-agent graph
+        """
+        if AgentStateToGraph is None:
+            raise ImportError("knowledge_graph module not available")
+        
+        converter = AgentStateToGraph(
+            include_relations=True,
+            property_as_node=True
+        )
+        
+        # Limit number of agents if specified
+        agents_to_convert = self.states
+        if max_agents is not None:
+            agents_to_convert = agents_to_convert[:max_agents]
+        
+        # Convert to multi-agent graph
+        nx_graph = converter.agents_to_graph(agents_to_convert)
+        
+        # Convert to PyTorch Geometric Data
+        return converter.to_torch_geometric(nx_graph)
+    
+    def get_graph_batch(self, batch_size: Optional[int] = None) -> Union[Batch, Data]:
+        """
+        Get a batch of graph data objects or a multi-agent graph.
+        
+        Args:
+            batch_size: Number of agents to include in the batch (None for all)
+            
+        Returns:
+            batch: PyTorch Geometric Batch object or multi-agent graph
+        """
+        if batch_size is None:
+            batch_size = self.batch_size
+        
+        # If batch size is 1, just return a single agent graph
+        if batch_size == 1:
+            agent = self.states[self._current_idx]
+            self._current_idx = (self._current_idx + 1) % len(self.states)
+            return agent.to_torch_geometric()
+        
+        # If more than one but less than threshold, create multi-agent graph
+        if batch_size <= 10:  # Threshold for multi-agent graph
+            end_idx = min(self._current_idx + batch_size, len(self.states))
+            agents_batch = self.states[self._current_idx:end_idx]
+            
+            # Update current index
+            self._current_idx = end_idx
+            if self._current_idx >= len(self.states):
+                self._current_idx = 0
+                
+            # Convert to multi-agent graph
+            return self.to_multi_agent_graph(max_agents=batch_size)
+        
+        # For larger batches, create separate graphs and batch them
+        end_idx = min(self._current_idx + batch_size, len(self.states))
+        agents_batch = self.states[self._current_idx:end_idx]
+        
+        # Update current index
+        self._current_idx = end_idx
+        if self._current_idx >= len(self.states):
+            self._current_idx = 0
+            
+        # Convert each agent to a graph and batch
+        graph_list = []
+        for agent in agents_batch:
+            graph_data = agent.to_torch_geometric()
+            graph_list.append(graph_data)
+            
+        return Batch.from_data_list(graph_list)
 
 
 # Helper functions

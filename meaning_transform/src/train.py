@@ -8,6 +8,7 @@ This module defines:
 1. Training loop
 2. Logging and checkpointing
 3. Semantic drift tracking
+4. Graph-based training support
 """
 
 import os
@@ -19,15 +20,17 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple, Optional, Union
 from datetime import datetime
 import shutil
+from torch_geometric.data import Data, Batch
 
 from .model import MeaningVAE
 from .data import AgentStateDataset, AgentState
 from .loss import CombinedLoss
 from .config import Config
 from .metrics import DriftTracker, SemanticMetrics, generate_t_sne_visualization
+from .graph_model import GraphVAELoss
 
 
 class Trainer:
@@ -57,15 +60,30 @@ class Trainer:
             latent_dim=self.config.model.latent_dim,
             compression_type=self.config.model.compression_type,
             compression_level=self.config.model.compression_level,
-            vq_num_embeddings=self.config.model.vq_num_embeddings
+            vq_num_embeddings=self.config.model.vq_num_embeddings,
+            use_graph=getattr(self.config.model, "use_graph", False),
+            graph_hidden_dim=getattr(self.config.model, "graph_hidden_dim", 128),
+            gnn_type=getattr(self.config.model, "gnn_type", "GCN"),
+            graph_num_layers=getattr(self.config.model, "graph_num_layers", 3)
         ).to(self.device)
         
         # Create loss function
-        self.loss_fn = CombinedLoss(
-            recon_loss_weight=self.config.training.recon_loss_weight,
-            kl_loss_weight=self.config.training.kl_loss_weight,
-            semantic_loss_weight=self.config.training.semantic_loss_weight
-        )
+        if getattr(self.config.model, "use_graph", False):
+            # Use graph-specific loss if using graph-based model
+            self.loss_fn = GraphVAELoss(
+                node_weight=getattr(self.config.training, "node_recon_weight", 1.0),
+                edge_weight=getattr(self.config.training, "edge_recon_weight", 1.0),
+                kl_weight=self.config.training.kl_loss_weight,
+                edge_attr_weight=getattr(self.config.training, "edge_attr_weight", 0.5),
+                semantic_weight=self.config.training.semantic_loss_weight
+            )
+        else:
+            # Use standard combined loss for vector-based model
+            self.loss_fn = CombinedLoss(
+                recon_loss_weight=self.config.training.recon_loss_weight,
+                kl_loss_weight=self.config.training.kl_loss_weight,
+                semantic_loss_weight=self.config.training.semantic_loss_weight
+            )
         
         # Create optimizer
         if self.config.training.optimizer == "adam":
@@ -122,6 +140,9 @@ class Trainer:
         
         # Create subdirectories for results
         (self.experiment_dir / "visualizations").mkdir(exist_ok=True)
+        
+        # Flag to determine if we're using graph-based representation
+        self.use_graph = getattr(self.config.model, "use_graph", False)
         
         # Save config
         self.save_config()
@@ -196,6 +217,22 @@ class Trainer:
             
         # Set aside a small set of states for tracking semantic drift
         self.drift_tracking_states = val_states[:min(10, len(val_states))]
+        
+        # If using graph-based representation, prepare graph versions as well
+        if self.use_graph:
+            if self.config.debug:
+                print("Preparing graph-based datasets...")
+            
+            # Create graph-based versions of the test states for evaluation
+            try:
+                self.drift_tracking_graphs = [
+                    state.to_torch_geometric() for state in self.drift_tracking_states
+                ]
+                if self.config.debug:
+                    print(f"Created {len(self.drift_tracking_graphs)} graph representations for drift tracking")
+            except Exception as e:
+                print(f"Warning: Could not create graph representations: {e}")
+                self.drift_tracking_graphs = None
     
     def train_epoch(self) -> Dict[str, float]:
         """
@@ -212,6 +249,7 @@ class Trainer:
         kl_loss_total = 0.0
         semantic_loss_total = 0.0
         compression_loss_total = 0.0
+        edge_loss_total = 0.0  # For graph models
         num_batches = 0
         
         # Shuffle at the start of each epoch
@@ -227,16 +265,32 @@ class Trainer:
         start_time = time.time()
         
         while self.train_dataset._current_idx < len(self.train_dataset.states):
-            # Get batch
-            batch = self.train_dataset.get_batch()
-            batch = batch.to(self.device)
+            # Get batch - either graph or tensor based on configuration
+            if self.use_graph:
+                batch = self.train_dataset.get_graph_batch()
+            else:
+                batch = self.train_dataset.get_batch()
+                
+            # Move batch to device
+            if isinstance(batch, (Data, Batch)):
+                # Graph data needs special handling to move to device
+                batch = batch.to(self.device)
+            else:
+                # Standard tensor data
+                batch = batch.to(self.device)
             
             # Forward pass
             self.optimizer.zero_grad()
             results = self.model(batch)
             
             # Compute loss
-            loss_results = self.loss_fn(results, batch)
+            if self.use_graph:
+                # Graph-specific loss calculation
+                loss_results = self.loss_fn(results, batch)
+            else:
+                # Standard tensor loss calculation
+                loss_results = self.loss_fn(results, batch)
+                
             loss = loss_results["total_loss"]
             
             # Backward pass
@@ -245,36 +299,53 @@ class Trainer:
             
             # Update metrics
             total_loss += loss.item()
-            recon_loss_total += loss_results["recon_loss"].item()
-            kl_loss_total += loss_results["kl_loss"].item()
-            semantic_loss_total += loss_results["semantic_loss"].item()
             
-            if "compression_loss" in results:
-                compression_loss_total += results["compression_loss"].item()
+            # Standard metrics
+            if "recon_loss" in loss_results:
+                recon_loss_total += loss_results["recon_loss"].item()
+            if "kl_loss" in loss_results:
+                kl_loss_total += loss_results["kl_loss"].item()
+            if "semantic_loss" in loss_results:
+                semantic_loss_total += loss_results["semantic_loss"].item()
+            if "compression_loss" in loss_results:
+                compression_loss_total += loss_results["compression_loss"].item()
                 
+            # Graph-specific metrics
+            if "edge_loss" in loss_results:
+                edge_loss_total += loss_results["edge_loss"].item()
+            
             num_batches += 1
             
-            # Print progress
+            # Progress update
             if self.config.verbose and num_batches % 10 == 0:
-                progress = num_batches / num_total_batches * 100
-                print(f"Training: {progress:.1f}% ({num_batches}/{num_total_batches}) "
-                      f"Loss: {loss.item():.4f}")
+                elapsed = time.time() - start_time
+                progress = num_batches / num_total_batches
+                remaining = elapsed / progress - elapsed if progress > 0 else 0
+                
+                print(f"Batch {num_batches}/{num_total_batches} "
+                      f"[{progress:.0%}] - "
+                      f"Loss: {loss.item():.4f} - "
+                      f"Elapsed: {elapsed:.0f}s - "
+                      f"Remaining: {remaining:.0f}s")
         
-        # Calculate metrics
+        # Compute average metrics
         metrics = {
-            "loss": total_loss / num_batches,
-            "recon_loss": recon_loss_total / num_batches,
-            "kl_loss": kl_loss_total / num_batches,
-            "semantic_loss": semantic_loss_total / num_batches,
-            "compression_loss": compression_loss_total / num_batches,
-            "time": time.time() - start_time
+            "train_loss": total_loss / num_batches,
+            "train_recon_loss": recon_loss_total / num_batches,
+            "train_kl_loss": kl_loss_total / num_batches,
+            "train_semantic_loss": semantic_loss_total / num_batches,
+            "train_compression_loss": compression_loss_total / num_batches
         }
+        
+        # Add graph-specific metrics if available
+        if self.use_graph:
+            metrics["train_edge_loss"] = edge_loss_total / num_batches
         
         return metrics
     
     def validate(self) -> Dict[str, float]:
         """
-        Validate model.
+        Validate model on validation set.
         
         Returns:
             metrics: Dictionary of validation metrics
@@ -287,6 +358,7 @@ class Trainer:
         kl_loss_total = 0.0
         semantic_loss_total = 0.0
         compression_loss_total = 0.0
+        edge_loss_total = 0.0  # For graph models
         num_batches = 0
         
         # Reset dataset index
@@ -294,100 +366,158 @@ class Trainer:
         
         with torch.no_grad():
             while self.val_dataset._current_idx < len(self.val_dataset.states):
-                # Get batch
-                batch = self.val_dataset.get_batch()
-                batch = batch.to(self.device)
+                # Get batch - either graph or tensor based on configuration
+                if self.use_graph:
+                    batch = self.val_dataset.get_graph_batch()
+                else:
+                    batch = self.val_dataset.get_batch()
+                    
+                # Move batch to device
+                if isinstance(batch, (Data, Batch)):
+                    # Graph data needs special handling to move to device
+                    batch = batch.to(self.device)
+                else:
+                    # Standard tensor data
+                    batch = batch.to(self.device)
                 
                 # Forward pass
                 results = self.model(batch)
                 
                 # Compute loss
-                loss_results = self.loss_fn(results, batch)
+                if self.use_graph:
+                    # Graph-specific loss calculation
+                    loss_results = self.loss_fn(results, batch)
+                else:
+                    # Standard tensor loss calculation
+                    loss_results = self.loss_fn(results, batch)
+                    
                 loss = loss_results["total_loss"]
                 
                 # Update metrics
                 total_loss += loss.item()
-                recon_loss_total += loss_results["recon_loss"].item()
-                kl_loss_total += loss_results["kl_loss"].item()
-                semantic_loss_total += loss_results["semantic_loss"].item()
                 
-                if "compression_loss" in results:
-                    compression_loss_total += results["compression_loss"].item()
+                # Standard metrics
+                if "recon_loss" in loss_results:
+                    recon_loss_total += loss_results["recon_loss"].item()
+                if "kl_loss" in loss_results:
+                    kl_loss_total += loss_results["kl_loss"].item()
+                if "semantic_loss" in loss_results:
+                    semantic_loss_total += loss_results["semantic_loss"].item()
+                if "compression_loss" in loss_results:
+                    compression_loss_total += loss_results["compression_loss"].item()
                     
+                # Graph-specific metrics
+                if "edge_loss" in loss_results:
+                    edge_loss_total += loss_results["edge_loss"].item()
+                
                 num_batches += 1
         
-        # Calculate metrics
+        # Compute average metrics
         metrics = {
-            "loss": total_loss / num_batches,
-            "recon_loss": recon_loss_total / num_batches,
-            "kl_loss": kl_loss_total / num_batches,
-            "semantic_loss": semantic_loss_total / num_batches,
-            "compression_loss": compression_loss_total / num_batches
+            "val_loss": total_loss / num_batches,
+            "val_recon_loss": recon_loss_total / num_batches,
+            "val_kl_loss": kl_loss_total / num_batches,
+            "val_semantic_loss": semantic_loss_total / num_batches,
+            "val_compression_loss": compression_loss_total / num_batches
         }
+        
+        # Add graph-specific metrics if available
+        if self.use_graph:
+            metrics["val_edge_loss"] = edge_loss_total / num_batches
         
         return metrics
     
     def track_semantic_drift(self):
-        """Track semantic drift for a fixed set of states across training."""
+        """Track semantic drift of agent states through VAE transformation."""
         self.model.eval()
         
         with torch.no_grad():
-            # Stack drift tracking states into a tensor
-            state_tensors = [state.to_tensor() for state in self.drift_tracking_states]
-            batch = torch.stack(state_tensors).to(self.device)
-            
-            # Forward pass
-            results = self.model(batch)
-            
-            # Get current compression level (bits per dimension)
-            if hasattr(self.model, 'bits_per_dim'):
-                compression_level = self.model.bits_per_dim
+            # Track drift for either graph or tensor representations
+            if self.use_graph and hasattr(self, 'drift_tracking_graphs') and self.drift_tracking_graphs:
+                # Process graph-based drift tracking
+                self._track_graph_semantic_drift()
             else:
-                # Default to configurable compression level 
-                compression_level = self.config.model.compression_level
+                # Process standard tensor-based drift tracking
+                self._track_tensor_semantic_drift()
+    
+    def _track_tensor_semantic_drift(self):
+        """Track semantic drift using tensor representations."""
+        # Convert states to tensors
+        tensors = [state.to_tensor() for state in self.drift_tracking_states]
+        states_tensor = torch.stack(tensors).to(self.device)
+        
+        # Pass through model
+        results = self.model(states_tensor)
+        
+        # Extract reconstructions
+        reconstructions = results["reconstruction"].cpu()
+        
+        # Calculate semantic metrics
+        semantic_metrics = self.semantic_metrics.calculate_metrics(
+            states_tensor.cpu(), reconstructions
+        )
+        
+        # Add metrics to tracking history
+        current_drift = {
+            "fidelity": semantic_metrics["fidelity"],
+            "meaning_preservation": semantic_metrics["meaning_preservation"],
+            "reconstruction_error": semantic_metrics["reconstruction_error"]
+        }
+        
+        self.semantic_drift_history.append(current_drift)
+        
+        # Log drift metrics
+        self.drift_tracker.log_semantic_drift(current_drift)
+    
+    def _track_graph_semantic_drift(self):
+        """Track semantic drift using graph representations."""
+        results_list = []
+        
+        # Process each graph individually to avoid batch size issues
+        for graph_data in self.drift_tracking_graphs:
+            # Move to device
+            graph_data = graph_data.to(self.device)
             
-            # Track metrics using our drift tracker
-            drift_metrics = self.drift_tracker.log_iteration(
-                iteration=len(self.train_losses),
-                compression_level=compression_level,
-                original=batch,
-                reconstructed=results["x_reconstructed"]
+            # Process through model
+            results = self.model(graph_data)
+            results_list.append(results)
+        
+        # Calculate graph-based semantic metrics
+        node_features_orig = [g.x.cpu() for g in self.drift_tracking_graphs]
+        node_features_recon = [r["reconstruction"].cpu() for r in results_list]
+        
+        # Use specialized graph metrics if available, or fall back to standard metrics
+        try:
+            semantic_metrics = self.semantic_metrics.calculate_graph_metrics(
+                self.drift_tracking_graphs, 
+                results_list,
+                self.model
             )
-            
-            # Extract feature-specific losses for backward compatibility
-            detailed_losses = self.semantic_metrics.compute_equivalence_scores(
-                batch, results["x_reconstructed"]
-            )
-            
-            # Create backward-compatible drift metrics
-            legacy_metrics = {
-                "epoch": len(self.train_losses),
-                "total_semantic_loss": 1.0 - detailed_losses["overall"],  # Convert similarity to loss
-                "feature_losses": {
-                    k: 1.0 - v for k, v in detailed_losses.items() if k != "overall"
-                }
+        except AttributeError:
+            # Fall back to node feature comparison if graph metrics not available
+            semantic_metrics = {
+                "node_preservation": np.mean([torch.nn.functional.cosine_similarity(
+                    orig.flatten(), recon.flatten(), dim=0).item() 
+                    for orig, recon in zip(node_features_orig, node_features_recon)]),
+                "reconstruction_error": np.mean([torch.nn.functional.mse_loss(
+                    orig, recon).item()
+                    for orig, recon in zip(node_features_orig, node_features_recon)])
             }
             
-            # Save to history
-            self.semantic_drift_history.append(legacy_metrics)
-            
-            # Generate latent space visualization periodically
-            if len(self.train_losses) % 10 == 0 and hasattr(results, "z"):
-                # Extract latent vectors
-                latent_vectors = results["z"]
-                
-                # Create role labels for visualization
-                role_indices = torch.argmax(batch[:, 5:10], dim=1)
-                
-                # Generate t-SNE visualization
-                vis_path = self.experiment_dir / "visualizations" / f"latent_tsne_epoch_{len(self.train_losses)}.png"
-                generate_t_sne_visualization(
-                    latent_vectors, 
-                    labels=role_indices,
-                    output_file=str(vis_path)
-                )
+            semantic_metrics["meaning_preservation"] = semantic_metrics["node_preservation"]
+            semantic_metrics["fidelity"] = 1.0 - semantic_metrics["reconstruction_error"]
         
-        return legacy_metrics
+        # Add metrics to tracking history
+        current_drift = {
+            "fidelity": semantic_metrics.get("fidelity", 0.0),
+            "meaning_preservation": semantic_metrics.get("meaning_preservation", 0.0),
+            "reconstruction_error": semantic_metrics.get("reconstruction_error", 0.0)
+        }
+        
+        self.semantic_drift_history.append(current_drift)
+        
+        # Log drift metrics
+        self.drift_tracker.log_semantic_drift(current_drift)
     
     def save_checkpoint(self, epoch: int, metrics: Dict[str, float], is_best: bool = False):
         """
@@ -473,8 +603,8 @@ class Trainer:
         
         # Plot total loss
         plt.subplot(2, 2, 1)
-        plt.plot(epochs, [m["loss"] for m in self.train_losses], label="Train")
-        plt.plot(epochs, [m["loss"] for m in self.val_losses], label="Validation")
+        plt.plot(epochs, [m["train_loss"] for m in self.train_losses], label="Train")
+        plt.plot(epochs, [m["val_loss"] for m in self.val_losses], label="Validation")
         plt.title("Total Loss")
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
@@ -482,8 +612,8 @@ class Trainer:
         
         # Plot reconstruction loss
         plt.subplot(2, 2, 2)
-        plt.plot(epochs, [m["recon_loss"] for m in self.train_losses], label="Train")
-        plt.plot(epochs, [m["recon_loss"] for m in self.val_losses], label="Validation")
+        plt.plot(epochs, [m["train_recon_loss"] for m in self.train_losses], label="Train")
+        plt.plot(epochs, [m["val_recon_loss"] for m in self.val_losses], label="Validation")
         plt.title("Reconstruction Loss")
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
@@ -491,8 +621,8 @@ class Trainer:
         
         # Plot KL loss
         plt.subplot(2, 2, 3)
-        plt.plot(epochs, [m["kl_loss"] for m in self.train_losses], label="Train")
-        plt.plot(epochs, [m["kl_loss"] for m in self.val_losses], label="Validation")
+        plt.plot(epochs, [m["train_kl_loss"] for m in self.train_losses], label="Train")
+        plt.plot(epochs, [m["val_kl_loss"] for m in self.val_losses], label="Validation")
         plt.title("KL Divergence Loss")
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
@@ -500,8 +630,8 @@ class Trainer:
         
         # Plot semantic loss
         plt.subplot(2, 2, 4)
-        plt.plot(epochs, [m["semantic_loss"] for m in self.train_losses], label="Train")
-        plt.plot(epochs, [m["semantic_loss"] for m in self.val_losses], label="Validation")
+        plt.plot(epochs, [m["train_semantic_loss"] for m in self.train_losses], label="Train")
+        plt.plot(epochs, [m["val_semantic_loss"] for m in self.val_losses], label="Validation")
         plt.title("Semantic Loss")
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
@@ -537,92 +667,144 @@ class Trainer:
         # Prepare data
         self.prepare_data()
         
-        # Resume from checkpoint if specified
+        # Initialize or load model
         start_epoch = 0
-        last_metrics = None
-        if resume_from is not None:
+        if resume_from:
             checkpoint = torch.load(resume_from, map_location=self.device)
             self.model.load_state_dict(checkpoint["model_state_dict"])
             self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-            
-            if "scheduler_state_dict" in checkpoint and self.scheduler is not None:
-                self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-                
             start_epoch = checkpoint["epoch"] + 1
-            self.train_losses = checkpoint.get("train_losses", [])
-            self.val_losses = checkpoint.get("val_losses", [])
+            self.train_losses = checkpoint["train_losses"]
+            self.val_losses = checkpoint["val_losses"]
             self.semantic_drift_history = checkpoint.get("semantic_drift_history", [])
             self.best_val_loss = checkpoint.get("best_val_loss", float('inf'))
+            self.patience_counter = checkpoint.get("patience_counter", 0)
             
-            # Get last metrics for cases where we don't enter the training loop
-            if self.val_losses:
-                last_metrics = self.val_losses[-1]
-            
-            print(f"Resumed from checkpoint at epoch {start_epoch}")
+            print(f"Resuming from epoch {start_epoch}")
         
-        # Initialize last_epoch to handle case where loop doesn't run
-        last_epoch = start_epoch - 1
+        # Print model summary
+        total_params = sum(p.numel() for p in self.model.parameters())
+        trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        print(f"Model has {total_params:,} parameters ({trainable_params:,} trainable)")
+        
+        # Print configuration summary
+        print(f"Training configuration:")
+        print(f"  - Epochs: {self.config.training.num_epochs}")
+        print(f"  - Batch size: {self.config.training.batch_size}")
+        print(f"  - Learning rate: {self.config.training.learning_rate}")
+        print(f"  - Using graph: {self.use_graph}")
+        if self.use_graph:
+            print(f"  - GNN type: {getattr(self.config.model, 'gnn_type', 'GCN')}")
+            print(f"  - Graph layers: {getattr(self.config.model, 'graph_num_layers', 3)}")
         
         # Training loop
         for epoch in range(start_epoch, self.config.training.num_epochs):
-            last_epoch = epoch  # Update last_epoch in each iteration
-            print(f"\nEpoch {epoch + 1}/{self.config.training.num_epochs}")
+            epoch_start_time = time.time()
             
-            # Train
+            # Train for one epoch
             train_metrics = self.train_epoch()
-            self.train_losses.append(train_metrics)
             
             # Validate
             val_metrics = self.validate()
-            self.val_losses.append(val_metrics)
-            last_metrics = val_metrics  # Store metrics for use after loop
             
             # Track semantic drift
-            drift_metrics = self.track_semantic_drift()
+            self.track_semantic_drift()
             
             # Update learning rate
             if self.scheduler is not None:
                 self.scheduler.step()
-                
-            # Print metrics
-            print(f"Train Loss: {train_metrics['loss']:.4f}, "
-                  f"Reconstruction: {train_metrics['recon_loss']:.4f}, "
-                  f"KL: {train_metrics['kl_loss']:.4f}, "
-                  f"Semantic: {train_metrics['semantic_loss']:.4f}")
-            print(f"Validation Loss: {val_metrics['loss']:.4f}, "
-                  f"Reconstruction: {val_metrics['recon_loss']:.4f}, "
-                  f"KL: {val_metrics['kl_loss']:.4f}, "
-                  f"Semantic: {val_metrics['semantic_loss']:.4f}")
-            print(f"Semantic Drift: {drift_metrics['total_semantic_loss']:.4f}")
             
-            # Check if this is the best model
-            is_best = val_metrics["loss"] < self.best_val_loss
+            # Track losses
+            self.train_losses.append(train_metrics["train_loss"])
+            self.val_losses.append(val_metrics["val_loss"])
+            
+            # Calculate epoch time
+            epoch_time = time.time() - epoch_start_time
+            
+            # Print progress
+            print(f"Epoch {epoch+1}/{self.config.training.num_epochs} "
+                  f"[{(epoch+1)/self.config.training.num_epochs:.0%}] - "
+                  f"Train Loss: {train_metrics['train_loss']:.4f} - "
+                  f"Val Loss: {val_metrics['val_loss']:.4f} - "
+                  f"Time: {epoch_time:.1f}s")
+            
+            # More detailed metrics if in verbose mode
+            if self.config.verbose:
+                print(f"  - Train Recon Loss: {train_metrics['train_recon_loss']:.4f} - "
+                      f"Val Recon Loss: {val_metrics['val_recon_loss']:.4f}")
+                print(f"  - Train KL Loss: {train_metrics['train_kl_loss']:.4f} - "
+                      f"Val KL Loss: {val_metrics['val_kl_loss']:.4f}")
+                
+                # Graph-specific metrics
+                if self.use_graph and "train_edge_loss" in train_metrics:
+                    print(f"  - Train Edge Loss: {train_metrics['train_edge_loss']:.4f} - "
+                          f"Val Edge Loss: {val_metrics['val_edge_loss']:.4f}")
+                
+                # Semantic drift metrics
+                current_drift = self.semantic_drift_history[-1]
+                print(f"  - Fidelity: {current_drift['fidelity']:.4f} - "
+                      f"Meaning Preservation: {current_drift['meaning_preservation']:.4f}")
+            
+            # Save model
+            is_best = val_metrics["val_loss"] < self.best_val_loss
             if is_best:
-                self.best_val_loss = val_metrics["loss"]
+                self.best_val_loss = val_metrics["val_loss"]
                 self.patience_counter = 0
-                print("New best model!")
             else:
                 self.patience_counter += 1
-                
+            
             # Save checkpoint
-            if (epoch + 1) % self.config.training.checkpoint_interval == 0 or is_best:
-                self.save_checkpoint(epoch + 1, val_metrics, is_best)
-                
+            self.save_checkpoint(epoch, {**train_metrics, **val_metrics}, is_best)
+            
+            # Cleanup old checkpoints
+            self._cleanup_checkpoints(epoch)
+            
             # Plot training curves
-            self.plot_training_curves()
-            self.plot_semantic_drift()
+            if (epoch + 1) % self.config.metrics.visualization_interval == 0:
+                self.plot_training_curves()
+                self.plot_semantic_drift()
                 
+                # Generate t-SNE visualization of latent space
+                if hasattr(self, 'drift_tracking_graphs') and self.drift_tracking_graphs and self.use_graph:
+                    # Generate visualization for graph embeddings
+                    graph_batch = Batch.from_data_list(
+                        [g.to(self.device) for g in self.drift_tracking_graphs[:30]]
+                    )
+                    with torch.no_grad():
+                        embeddings = self.model.encode(graph_batch).cpu().numpy()
+                    
+                    generate_t_sne_visualization(
+                        embeddings,
+                        labels=[state.role for state in self.drift_tracking_states[:30]],
+                        save_path=str(self.experiment_dir / "visualizations" / f"tsne_latent_epoch_{epoch+1}.png"),
+                        title=f"t-SNE of Graph Latent Space (Epoch {epoch+1})"
+                    )
+                else:
+                    # Generate visualization for tensor embeddings
+                    tensors = [state.to_tensor() for state in self.drift_tracking_states[:30]]
+                    states_tensor = torch.stack(tensors).to(self.device)
+                    
+                    with torch.no_grad():
+                        embeddings = self.model.encode(states_tensor).cpu().numpy()
+                    
+                    generate_t_sne_visualization(
+                        embeddings,
+                        labels=[state.role for state in self.drift_tracking_states[:30]],
+                        save_path=str(self.experiment_dir / "visualizations" / f"tsne_latent_epoch_{epoch+1}.png"),
+                        title=f"t-SNE of Latent Space (Epoch {epoch+1})"
+                    )
+            
             # Early stopping
             if self.patience_counter >= self.config.training.patience:
-                print(f"Early stopping triggered after {epoch + 1} epochs")
+                print(f"Early stopping triggered after {epoch+1} epochs")
                 break
         
         # Skip saving if we didn't run any training epochs and don't have metrics
-        if last_metrics is not None:
+        if self.val_losses:
             # Save final model - use the last epoch we processed
             self.save_checkpoint(
-                last_epoch + 1, last_metrics, 
-                is_best=(last_metrics["loss"] < self.best_val_loss)
+                epoch, self.val_losses[-1], 
+                is_best=(self.val_losses[-1]["val_loss"] < self.best_val_loss)
             )
             
             print(f"Training completed. Best validation loss: {self.best_val_loss:.4f}")

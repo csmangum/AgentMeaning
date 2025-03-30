@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9] - 2023-08-15
+
+### Added
+
+#### Graph-Based Agent State Representation Integration
+- Enhanced `MeaningVAE` to support both vector-based and graph-based inputs
+- Added graph conversion methods to `AgentState` class for transforming states to knowledge graphs
+- Updated `AgentStateDataset` with graph batching functionality and multi-agent graph creation
+- Modified training pipeline in `Trainer` class to handle graph data processing
+- Implemented specialized semantic drift tracking for graph representations
+- Added graph-specific visualization tools for latent space exploration
+- Integrated PyTorch Geometric support for efficient graph neural network operations
+- Created seamless transition between vector and graph representations
+- Added configuration options for controlling graph model parameters
+- Enhanced checkpointing and visualization for graph-based models
+
 ## [0.1.8] - 2023-08-14
 
 ### Added

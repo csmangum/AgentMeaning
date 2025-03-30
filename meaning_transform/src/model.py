@@ -9,13 +9,19 @@ This module defines:
 2. Decoder architecture for reconstructing agent states from latent space
 3. Compression mechanisms (entropy bottleneck or vector quantization)
 4. The full pipeline: agent state → binary → latent → compressed → reconstructed
+5. Graph-based representation and transformation
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Tuple, Dict, Any, List, Optional
+from typing import Tuple, Dict, Any, List, Optional, Union
 import numpy as np
+from torch_geometric.data import Data, Batch
+
+# Import graph-related components
+from .knowledge_graph import AgentStateToGraph
+from .graph_model import GraphEncoder, GraphDecoder, VGAE
 
 
 class Encoder(nn.Module):
@@ -274,18 +280,26 @@ class MeaningVAE(nn.Module):
         compression_type: str = "entropy",
         compression_level: float = 1.0,
         vq_num_embeddings: int = 512,
-        use_batch_norm: bool = True
+        use_batch_norm: bool = True,
+        use_graph: bool = False,
+        graph_hidden_dim: int = 128,
+        gnn_type: str = "GCN",
+        graph_num_layers: int = 3
     ):
         """
-        Initialize VAE model.
+        Initialize MeaningVAE model.
         
         Args:
             input_dim: Dimension of input agent state
             latent_dim: Dimension of latent space
-            compression_type: Type of compression ("entropy" or "vq")
-            compression_level: Level of compression (higher = more compression)
-            vq_num_embeddings: Number of embedding vectors for VQ
+            compression_type: Type of compression ('entropy' or 'vq')
+            compression_level: Level of compression
+            vq_num_embeddings: Number of embeddings for vector quantization
             use_batch_norm: Whether to use batch normalization
+            use_graph: Whether to use graph-based representation
+            graph_hidden_dim: Hidden dimension for graph neural networks
+            gnn_type: Type of graph neural network ('GCN', 'GAT', 'SAGE', 'GIN')
+            graph_num_layers: Number of layers in graph neural networks
         """
         super().__init__()
         
@@ -293,18 +307,79 @@ class MeaningVAE(nn.Module):
         self.latent_dim = latent_dim
         self.compression_type = compression_type
         self.compression_level = compression_level
+        self.use_batch_norm = use_batch_norm
+        self.use_graph = use_graph
         
-        # Create encoder and decoder
-        self.encoder = Encoder(input_dim, latent_dim, use_batch_norm=use_batch_norm)
-        self.decoder = Decoder(latent_dim, input_dim, use_batch_norm=use_batch_norm)
+        # Standard vector encoder/decoder for non-graph inputs
+        self.encoder = Encoder(
+            input_dim=input_dim,
+            latent_dim=latent_dim,
+            hidden_dims=None,
+            use_batch_norm=use_batch_norm
+        )
         
-        # Create compression mechanism
+        self.decoder = Decoder(
+            latent_dim=latent_dim,
+            output_dim=input_dim,
+            hidden_dims=None,
+            use_batch_norm=use_batch_norm
+        )
+        
+        # Add graph encoder/decoder if using graphs
+        if self.use_graph:
+            # Standard feature dimensions for graph nodes and edges
+            node_dim = 15  # Based on AgentState features
+            edge_dim = 5   # Based on relationship types
+            
+            # Graph conversion utility
+            self.graph_converter = AgentStateToGraph(
+                relationship_threshold=0.5,
+                include_relations=True,
+                property_as_node=True
+            )
+            
+            # Graph-based encoder and decoder
+            self.graph_encoder = GraphEncoder(
+                in_channels=node_dim,
+                hidden_channels=graph_hidden_dim,
+                out_channels=latent_dim,
+                num_layers=graph_num_layers,
+                gnn_type=gnn_type,
+                use_edge_attr=True,
+                edge_dim=edge_dim
+            )
+            
+            self.graph_decoder = GraphDecoder(
+                embedding_dim=latent_dim,
+                hidden_channels=graph_hidden_dim,
+                feature_dim=node_dim,
+                edge_dim=edge_dim
+            )
+            
+            # Graph VAE for direct graph processing
+            self.graph_vae = VGAE(
+                in_channels=node_dim,
+                hidden_channels=graph_hidden_dim,
+                latent_dim=latent_dim,
+                feature_dim=node_dim,
+                edge_dim=edge_dim,
+                num_layers=graph_num_layers,
+                gnn_type=gnn_type
+            )
+        
+        # Set up compression module based on compression_type
         if compression_type == "entropy":
-            self.compressor = EntropyBottleneck(latent_dim, compression_level)
+            self.compression = EntropyBottleneck(
+                latent_dim=latent_dim,
+                compression_level=compression_level
+            )
         elif compression_type == "vq":
-            self.compressor = VectorQuantizer(latent_dim, vq_num_embeddings)
+            self.compression = VectorQuantizer(
+                latent_dim=latent_dim,
+                num_embeddings=vq_num_embeddings
+            )
         else:
-            raise ValueError(f"Unsupported compression type: {compression_type}")
+            self.compression = None
     
     def reparameterize(self, mu: torch.Tensor, log_var: torch.Tensor) -> torch.Tensor:
         """
@@ -322,94 +397,130 @@ class MeaningVAE(nn.Module):
         z = mu + eps * std
         return z
     
-    def forward(self, x: torch.Tensor) -> Dict[str, Any]:
+    def forward(self, x: Union[torch.Tensor, Data, Batch]) -> Dict[str, Any]:
         """
-        Forward pass through the VAE model.
+        Forward pass through the model.
         
         Args:
-            x: Input tensor of agent state
+            x: Input tensor of agent state or graph data
             
         Returns:
-            results: Dictionary containing:
-                - x_reconstructed: Reconstructed agent state
-                - mu: Mean of latent distribution
-                - log_var: Log variance of latent distribution
-                - z: Sampled latent vector
-                - z_compressed: Compressed latent vector
-                - kl_loss: KL divergence loss
-                - compression_loss: Loss from compression mechanism
+            results: Dictionary of results
+                - mu: Mean of latent representation
+                - log_var: Log variance of latent representation
+                - z: Latent representation after reparameterization
+                - z_compressed: Compressed latent representation
+                - reconstruction: Reconstructed agent state
+                - compression_loss: Loss from compression (if applicable)
+                - quantization_loss: Loss from vector quantization (if applicable)
+                - perplexity: Perplexity of codebook usage (if applicable)
         """
-        # Encode input to latent distribution parameters
+        results = {}
+        
+        # Handle graph data
+        if self.use_graph and isinstance(x, (Data, Batch)):
+            # Use graph VAE directly
+            graph_results = self.graph_vae(x)
+            
+            # Combine results with standard VAE format
+            results["mu"] = graph_results["mu"]
+            results["log_var"] = graph_results["log_var"]
+            results["z"] = graph_results["z"]
+            results["reconstruction"] = graph_results["node_features"]
+            results["edge_pred"] = graph_results["edge_pred"]
+            results["edge_attr_pred"] = graph_results["edge_attr_pred"]
+            
+            # Apply compression if enabled
+            if self.compression is not None:
+                if self.compression_type == "entropy":
+                    z_compressed, compression_loss = self.compression(results["z"])
+                    results["z_compressed"] = z_compressed
+                    results["compression_loss"] = compression_loss
+                elif self.compression_type == "vq":
+                    z_quantized, vq_loss, perplexity = self.compression(results["z"])
+                    results["z_compressed"] = z_quantized
+                    results["quantization_loss"] = vq_loss
+                    results["perplexity"] = perplexity
+            
+            return results
+            
+        # Standard VAE forward pass for tensor input
         mu, log_var = self.encoder(x)
+        results["mu"] = mu
+        results["log_var"] = log_var
         
-        # Sample from latent distribution using reparameterization trick
+        # Reparameterization trick
         z = self.reparameterize(mu, log_var)
+        results["z"] = z
         
-        # Apply compression based on the selected mechanism
-        compression_loss = 0.0
-        vq_loss = 0.0
-        perplexity = 0.0
-        
-        if self.compression_type == "entropy":
-            z_compressed, compression_loss = self.compressor(z)
-        elif self.compression_type == "vq":
-            z_compressed, vq_loss, perplexity = self.compressor(z)
+        # Apply compression if enabled
+        if self.compression is not None:
+            if self.compression_type == "entropy":
+                z_compressed, compression_loss = self.compression(z)
+                results["z_compressed"] = z_compressed
+                results["compression_loss"] = compression_loss
+                
+                # Decode from compressed representation
+                reconstruction = self.decoder(z_compressed)
+            elif self.compression_type == "vq":
+                z_quantized, vq_loss, perplexity = self.compression(z)
+                results["z_compressed"] = z_quantized
+                results["quantization_loss"] = vq_loss
+                results["perplexity"] = perplexity
+                
+                # Decode from quantized representation
+                reconstruction = self.decoder(z_quantized)
         else:
-            z_compressed = z  # No compression
+            # No compression, decode directly from z
+            reconstruction = self.decoder(z)
         
-        # Decode compressed latent
-        x_reconstructed = self.decoder(z_compressed)
-        
-        # Compute KL divergence
-        kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
-        
-        # Return all relevant values
-        results = {
-            "x_reconstructed": x_reconstructed,
-            "mu": mu,
-            "log_var": log_var,
-            "z": z,
-            "z_compressed": z_compressed,
-            "kl_loss": kl_loss,
-            "compression_loss": compression_loss,
-            "vq_loss": vq_loss,
-            "perplexity": perplexity
-        }
-        
+        results["reconstruction"] = reconstruction
         return results
-    
-    def encode(self, x: torch.Tensor) -> torch.Tensor:
+
+    def encode(self, x: Union[torch.Tensor, Data, Batch]) -> torch.Tensor:
         """
-        Encode input agent state to latent representation.
+        Encode input to latent representation.
         
         Args:
-            x: Input tensor of agent state
+            x: Input tensor of agent state or graph data
             
         Returns:
-            z_compressed: Compressed latent representation
+            z: Latent representation
         """
+        # Handle graph data
+        if self.use_graph and isinstance(x, (Data, Batch)):
+            # Use graph encoder
+            return self.graph_vae.encode_to_latent(x)
+        
+        # Standard encoding for tensor input
         mu, log_var = self.encoder(x)
         z = self.reparameterize(mu, log_var)
         
-        if self.compression_type == "entropy":
-            z_compressed, _ = self.compressor(z)
-        elif self.compression_type == "vq":
-            z_compressed, _, _ = self.compressor(z)
-        else:
-            z_compressed = z
-            
-        return z_compressed
+        # Apply compression if enabled
+        if self.compression is not None:
+            if self.compression_type == "entropy":
+                z, _ = self.compression(z)
+            elif self.compression_type == "vq":
+                z, _, _ = self.compression(z)
+        
+        return z
     
-    def decode(self, z: torch.Tensor) -> torch.Tensor:
+    def decode(self, z: torch.Tensor, is_graph: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
-        Decode latent representation to agent state.
+        Decode latent representation to agent state or graph components.
         
         Args:
             z: Latent representation
+            is_graph: Whether to decode as graph components
             
         Returns:
-            x_reconstructed: Reconstructed agent state
+            Decoded representation (tensor for standard, tuple for graph)
         """
+        if is_graph and self.use_graph:
+            # Use graph decoder
+            return self.graph_decoder(z)
+        
+        # Standard decoding for non-graph
         return self.decoder(z)
     
     def save(self, filepath: str) -> None:
@@ -429,10 +540,48 @@ class MeaningVAE(nn.Module):
         """
         if self.compression_type == "entropy":
             # Estimate bits per dimension from the entropy bottleneck
-            return torch.exp(self.compressor.compress_log_scale).mean().item()
+            return torch.exp(self.compression.compress_log_scale).mean().item()
         elif self.compression_type == "vq":
             # Estimate bits per dimension for VQ as log2(codebook size) / dimension
-            return np.log2(self.compressor.num_embeddings) / self.latent_dim
+            return np.log2(self.compression.num_embeddings) / self.latent_dim
         else:
             # No compression
-            return 1.0 
+            return 1.0
+
+    def convert_agent_to_graph(self, agent_state):
+        """
+        Convert an agent state to graph representation.
+        
+        Args:
+            agent_state: AgentState object
+            
+        Returns:
+            graph_data: PyTorch Geometric Data object
+        """
+        if not self.use_graph:
+            raise ValueError("Model not configured for graph representation")
+        
+        # Convert agent state to NetworkX graph
+        nx_graph = self.graph_converter.agent_to_graph(agent_state)
+        
+        # Convert to PyTorch Geometric Data
+        return self.graph_converter.to_torch_geometric(nx_graph)
+    
+    def convert_agents_to_graph(self, agent_states):
+        """
+        Convert multiple agent states to a single graph representation.
+        
+        Args:
+            agent_states: List of AgentState objects
+            
+        Returns:
+            graph_data: PyTorch Geometric Data object
+        """
+        if not self.use_graph:
+            raise ValueError("Model not configured for graph representation")
+        
+        # Convert agent states to NetworkX graph
+        nx_graph = self.graph_converter.agents_to_graph(agent_states)
+        
+        # Convert to PyTorch Geometric Data
+        return self.graph_converter.to_torch_geometric(nx_graph) 

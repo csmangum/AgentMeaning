@@ -411,6 +411,7 @@ class MeaningVAE(nn.Module):
                 - z: Latent representation after reparameterization
                 - z_compressed: Compressed latent representation
                 - reconstruction: Reconstructed agent state
+                - kl_loss: KL divergence loss
                 - compression_loss: Loss from compression (if applicable)
                 - quantization_loss: Loss from vector quantization (if applicable)
                 - perplexity: Perplexity of codebook usage (if applicable)
@@ -430,6 +431,10 @@ class MeaningVAE(nn.Module):
             results["edge_pred"] = graph_results["edge_pred"]
             results["edge_attr_pred"] = graph_results["edge_attr_pred"]
             
+            # Calculate KL loss
+            kl_loss = -0.5 * torch.sum(1 + results["log_var"] - results["mu"].pow(2) - results["log_var"].exp())
+            results["kl_loss"] = kl_loss / results["mu"].size(0)  # Normalize by batch size
+            
             # Apply compression if enabled
             if self.compression is not None:
                 if self.compression_type == "entropy":
@@ -448,6 +453,10 @@ class MeaningVAE(nn.Module):
         mu, log_var = self.encoder(x)
         results["mu"] = mu
         results["log_var"] = log_var
+        
+        # Calculate KL loss
+        kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
+        results["kl_loss"] = kl_loss / mu.size(0)  # Normalize by batch size
         
         # Reparameterization trick
         z = self.reparameterize(mu, log_var)

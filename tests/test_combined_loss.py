@@ -5,10 +5,19 @@
 Standalone test for the combined loss function.
 """
 
+import sys
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 import numpy as np
-from src.loss import CombinedLoss
+
+# Add the project root to the path
+project_root = str(Path(__file__).resolve().parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from meaning_transform.src.loss import CombinedLoss
 
 
 def test_combined_loss():

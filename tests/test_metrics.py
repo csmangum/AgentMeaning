@@ -11,18 +11,34 @@ This script tests:
 4. Latent space metrics
 """
 
+import sys
 import os
-import torch
-import numpy as np
-import matplotlib.pyplot as plt
+import tempfile
 from pathlib import Path
 
-from src.metrics import (
+import numpy as np
+import torch
+import unittest
+from collections import defaultdict
+import matplotlib.pyplot as plt
+
+# Add the project root to the path
+project_root = str(Path(__file__).resolve().parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from meaning_transform.src.metrics import (
     SemanticMetrics, 
     DriftTracker, 
     compute_latent_space_metrics,
     generate_t_sne_visualization,
-    CompressionThresholdFinder
+    CompressionThresholdFinder,
+    compute_reconstruction_error,
+    compute_latent_statistics,
+    compute_meaning_metrics,
+    normalized_hamming_distance,
+    binary_accuracy,
+    compute_drift_metrics
 )
 
 

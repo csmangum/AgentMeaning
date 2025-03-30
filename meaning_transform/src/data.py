@@ -684,3 +684,86 @@ def load_from_simulation_db(
     dataset = AgentStateDataset()
     dataset.load_from_db(db_path, limit)
     return dataset.states
+
+
+def generate_agent_states(count: int = 10, random_seed: int = None) -> List[AgentState]:
+    """Generate synthetic agent states for testing and development.
+    
+    Args:
+        count: Number of agent states to generate
+        random_seed: Optional seed for reproducibility
+        
+    Returns:
+        List of synthetic AgentState objects
+    """
+    if random_seed is not None:
+        random.seed(random_seed)
+        np.random.seed(random_seed)
+    
+    roles = ["explorer", "gatherer", "defender", "attacker", "builder"]
+    goal_options = [
+        "find_resources", "gather_materials", "defend_base", 
+        "attack_enemy", "build_structure", "explore_territory",
+        "heal_allies", "upgrade_equipment"
+    ]
+    
+    states = []
+    for i in range(count):
+        # Generate random position
+        position = (
+            random.uniform(-100, 100),  # x
+            random.uniform(-100, 100),  # y
+            random.uniform(-10, 10)     # z
+        )
+        
+        # Generate random health and energy
+        health = random.uniform(0.1, 1.0)
+        energy = random.uniform(0.2, 1.0)
+        
+        # Generate random inventory
+        inventory_items = ["wood", "stone", "metal", "food", "tools", "weapons"]
+        inventory = {item: random.randint(0, 20) for item in inventory_items if random.random() > 0.5}
+        
+        # Select random role and goals
+        role = random.choice(roles)
+        num_goals = random.randint(1, 3)
+        goals = random.sample(goal_options, num_goals)
+        
+        # Generate other properties
+        agent_id = f"agent_{i}"
+        step_number = random.randint(0, 1000)
+        resource_level = random.uniform(0.0, 1.0)
+        current_health = min(health, random.uniform(0.0, health))
+        is_defending = random.random() > 0.7
+        age = random.randint(0, 500)
+        total_reward = random.uniform(-50, 100)
+        
+        # Create agent state with additional random properties
+        additional_props = {}
+        if random.random() > 0.5:
+            additional_props["speed"] = random.uniform(0.5, 2.0)
+        if random.random() > 0.7:
+            additional_props["skill_level"] = random.randint(1, 10)
+        if random.random() > 0.8:
+            additional_props["team"] = random.choice(["red", "blue", "green"])
+        
+        state = AgentState(
+            position=position,
+            health=health,
+            energy=energy,
+            inventory=inventory,
+            role=role,
+            goals=goals,
+            agent_id=agent_id,
+            step_number=step_number,
+            resource_level=resource_level,
+            current_health=current_health,
+            is_defending=is_defending,
+            age=age,
+            total_reward=total_reward,
+            **additional_props
+        )
+        
+        states.append(state)
+    
+    return states

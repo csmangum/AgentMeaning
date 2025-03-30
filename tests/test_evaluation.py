@@ -2,14 +2,23 @@
 # -*- coding: utf-8 -*-
 
 """
-Simple test script to test the semantic evaluation metrics.
+Test evaluation methods for the meaning preservation model.
 """
 
 import os
+import sys
+from pathlib import Path
+
 import torch
 import numpy as np
-from src.model import MeaningVAE
-from src.metrics import (
+
+# Add the project root to the path
+project_root = str(Path(__file__).resolve().parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from meaning_transform.src.model import MeaningVAE
+from meaning_transform.src.metrics import (
     SemanticMetrics,
     DriftTracker,
     CompressionThresholdFinder,

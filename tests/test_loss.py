@@ -5,10 +5,19 @@
 Test script for loss functions in the meaning-preserving transformation system.
 """
 
+import sys
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 import numpy as np
-from src.loss import ReconstructionLoss, KLDivergenceLoss, SemanticLoss, CombinedLoss
+
+# Add the project root to the path
+project_root = str(Path(__file__).resolve().parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from meaning_transform.src.loss import ReconstructionLoss, KLDivergenceLoss, SemanticLoss, CombinedLoss
 
 
 def test_reconstruction_loss():

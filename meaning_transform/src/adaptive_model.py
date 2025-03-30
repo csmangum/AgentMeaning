@@ -17,7 +17,7 @@ import numpy as np
 from typing import Tuple, Dict, Any, List, Optional
 import logging
 
-from meaning_transform.src.model import Encoder, Decoder, MeaningVAE
+from meaning_transform.src.model import Encoder, Decoder
 
 
 class AdaptiveEntropyBottleneck(nn.Module):

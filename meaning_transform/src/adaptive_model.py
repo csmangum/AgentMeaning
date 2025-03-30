@@ -198,9 +198,7 @@ class AdaptiveMeaningVAE(nn.Module):
         """
         if self.training:
             std = torch.exp(0.5 * log_var)
-            if self.seed is not None:
-                # Use deterministic noise when seed is set
-                torch.manual_seed(self.seed)
+            # Removed seed setting from reparameterize method
             eps = torch.randn_like(std)
             z = mu + eps * std
             return z

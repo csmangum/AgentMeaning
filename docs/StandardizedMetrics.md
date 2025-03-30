@@ -123,18 +123,17 @@ Note: For drift, lower values are better (less meaning loss).
 ### Comparison Across Experiments
 
 When comparing different experiments:
-1. Always use the standardized metrics, not legacy metrics
-2. Convert legacy metrics using the `MetricsConverter` class
-3. Use the same feature groups and weights across experiments
-4. Report both preservation and fidelity scores
-5. Include drift measurements when comparing to a baseline
+1. Always use the standardized metrics
+2. Use the same feature groups and weights across experiments
+3. Report both preservation and fidelity scores
+4. Include drift measurements when comparing to a baseline
 
 ## Implementation Reference
 
 The standardized metrics are implemented in `meaning_transform/src/standardized_metrics.py`:
 
 ```python
-from meaning_transform.src.standardized_metrics import StandardizedMetrics, convert_legacy_metrics
+from meaning_transform.src.standardized_metrics import StandardizedMetrics
 
 # Create metrics instance
 metrics = StandardizedMetrics()
@@ -146,7 +145,4 @@ results = metrics.evaluate(original_states, reconstructed_states)
 preservation = results["overall_preservation"]
 fidelity = results["overall_fidelity"]
 category = results["preservation_category"]  # e.g., "good", "acceptable"
-
-# Convert legacy metrics
-standardized = convert_legacy_metrics(legacy_results)
 ``` 

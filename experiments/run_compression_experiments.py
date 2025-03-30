@@ -32,11 +32,12 @@ import torch
 project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
-from src.config import Config
-from src.data import AgentState, AgentStateDataset
-from src.metrics import SemanticMetrics, compute_feature_drift
-from src.model import MeaningVAE
-from src.train import Trainer
+from meaning_transform.src.config import Config
+from meaning_transform.src.data import AgentState, AgentStateDataset
+from meaning_transform.src.metrics import compute_feature_drift
+from meaning_transform.src.model import MeaningVAE
+from meaning_transform.src.standardized_metrics import StandardizedMetrics
+from meaning_transform.src.train import Trainer
 
 
 class CompressionExperiment:
@@ -194,14 +195,22 @@ class CompressionExperiment:
         dataset = AgentStateDataset(batch_size=self.base_config.training.batch_size)
 
         # Load real data from database
-        db_path = self.base_config.data.db_path if hasattr(self.base_config.data, 'db_path') else "simulation.db"
+        db_path = (
+            self.base_config.data.db_path
+            if hasattr(self.base_config.data, "db_path")
+            else "simulation.db"
+        )
         if not os.path.exists(db_path):
-            raise FileNotFoundError(f"Database file {db_path} not found. Please create a simulation database first.")
-            
+            raise FileNotFoundError(
+                f"Database file {db_path} not found. Please create a simulation database first."
+            )
+
         print(f"Loading agent states from {db_path}...")
         dataset.load_from_db(db_path, limit=self.base_config.data.num_states)
         if not dataset.states:
-            raise ValueError("No states loaded from database. Please check that your database contains agent state data.")
+            raise ValueError(
+                "No states loaded from database. Please check that your database contains agent state data."
+            )
 
         # Split into train and validation sets
         total_states = len(dataset.states)
@@ -369,7 +378,7 @@ class CompressionExperiment:
         model.to(device)
         model.eval()
 
-        semantic_metrics = SemanticMetrics()
+        semantic_metrics = StandardizedMetrics()
 
         # Get the drift tracking states
         drift_states = (
@@ -392,7 +401,7 @@ class CompressionExperiment:
             print("Warning: No drift tracking states available for evaluation")
             return 0.5
 
-        # Compute drift for all states
+        # Compute drift for all states using standardized metrics
         total_drift = 0.0
         count = 0
 
@@ -406,15 +415,18 @@ class CompressionExperiment:
                     result = model(tensor)
                     reconstructed = result["x_reconstructed"][0].cpu()
 
-                    # Convert back to agent state
-                    reconstructed_state = AgentState.from_tensor(reconstructed)
+                    # Use standardized metrics to compute drift
+                    original_tensor = state.to_tensor().unsqueeze(0)
+                    reconstructed_tensor = reconstructed.unsqueeze(0)
 
-                    # Compute semantic drift
-                    feature_drift = compute_feature_drift(state, reconstructed_state)
+                    # Calculate drift using standardized metrics
+                    metrics = semantic_metrics.measure_drift(
+                        original_tensor, reconstructed_tensor
+                    )
 
-                    # Average drift across features
-                    avg_drift = sum(feature_drift.values()) / len(feature_drift)
-                    total_drift += avg_drift
+                    # Use overall drift metric
+                    drift_value = metrics.get("overall_drift", 0.5)
+                    total_drift += drift_value
                     count += 1
 
             return total_drift / max(1, count)

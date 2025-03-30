@@ -8,11 +8,11 @@ Test script specifically for the drift tracking functionality in train.py.
 import os
 import torch
 import numpy as np
-from src.metrics import (
-    SemanticMetrics,
+from meaning_transform.src.metrics import (
     DriftTracker,
     CompressionThresholdFinder
 )
+from meaning_transform.src.standardized_metrics import StandardizedMetrics
 
 # Create test data with expected format
 def create_test_batch(batch_size=10, input_dim=50):
@@ -114,7 +114,7 @@ def test_track_semantic_drift(iterations=3):
     """Test the semantic drift tracking functionality."""
     # Initialize metrics tools
     drift_tracker = DriftTracker(log_dir=os.path.join(output_dir, "drift_tracking"))
-    semantic_metrics = SemanticMetrics()
+    semantic_metrics = StandardizedMetrics()
     
     # Store history
     drift_history = []
@@ -140,22 +140,23 @@ def test_track_semantic_drift(iterations=3):
             reconstructed=results["x_reconstructed"]
         )
         
-        # Extract feature-specific losses for tracking
-        detailed_losses = semantic_metrics.compute_equivalence_scores(
+        # Calculate metrics using standardized metrics
+        standard_metrics = semantic_metrics.evaluate(
             batch, results["x_reconstructed"]
         )
         
-        # Create backward-compatible drift metrics
-        legacy_metrics = {
+        # Create metrics for history tracking
+        history_metrics = {
             "epoch": i,
-            "total_semantic_loss": 1.0 - detailed_losses["overall"],  # Convert similarity to loss
+            "total_semantic_loss": 1.0 - standard_metrics["overall_preservation"],
             "feature_losses": {
-                k: 1.0 - v for k, v in detailed_losses.items() if k != "overall"
+                k: 1.0 - v for k, v in standard_metrics.items() 
+                if k.endswith("_preservation") and k != "overall_preservation"
             }
         }
         
         # Save to history
-        drift_history.append(legacy_metrics)
+        drift_history.append(history_metrics)
         
         # Generate latent space visualization periodically
         if i % 2 == 0:
@@ -174,8 +175,9 @@ def test_track_semantic_drift(iterations=3):
                 output_file=vis_path
             )
         
-        print(f"Overall semantic score: {detailed_losses['overall']:.4f}")
-        print(f"Semantic loss: {legacy_metrics['total_semantic_loss']:.4f}")
+        print(f"Overall preservation: {standard_metrics['overall_preservation']:.4f}")
+        print(f"Overall fidelity: {standard_metrics['overall_fidelity']:.4f}")
+        print(f"Semantic loss: {history_metrics['total_semantic_loss']:.4f}")
     
     # Generate visualization and report
     print("\nGenerating visualization and report...")

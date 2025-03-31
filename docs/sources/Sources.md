@@ -2,11 +2,7 @@
 
 1. “Relevance Realization and the Emerging Framework in Cognitive Science” by John Vervaeke
 2. “The Ecological Approach to Visual Perception” by James J. Gibson
-	•	Why It’s Important: Gibson’s theory of affordances—how perception is tied to potential actions—underpins the manifesto’s focus on maintaining the potential for discovery and interaction.
-	•	Format: Book.
 3. “Metaphors We Live By” by George Lakoff and Mark Johnson
-	•	Why It’s Important: This book examines how metaphors shape our understanding, aligning with the manifesto’s idea of transformations (like compression) as metaphors that reveal new perspectives.
-	•	Format: Book.
 4. “Steps to an Ecology of Mind” by Gregory Bateson
 	•	Why It’s Important: Bateson’s concept of information as “a difference that makes a difference” is key to distinguishing meaningful signals from noise, a core theme in the manifesto.
 	•	Format: Book (collection of essays).

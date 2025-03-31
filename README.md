@@ -35,7 +35,7 @@
   Intuition emerges from the ability to translate between different representational forms without losing critical information. This mapping becomes more efficient and accurate as the system learns which features matter most.
 
 - **Understanding as regenerative compression**  
-  True understanding emerges when an agent can distill something to its essential properties and then expand it back in a way that preserves behavioral and perceptual equivalence. Like a child discovering building blocks, understanding isn't about perfect recall of details, but about extracting patterns that allow meaningful reconstruction. We "understand" when we can compress to essence and regenerate equivalence.
+  True understanding emerges when an agent can distill something to its essential properties and then expand it back in a way that preserves behavioral and perceptual equivalence. Understanding isn't about perfect recall of details, but about extracting patterns that allow meaningful reconstruction. We "understand" when we can compress to essence and regenerate equivalence.
 
 ### Relevant Fields:
 - **Representation Learning**: Implement contrastive learning objectives that focus on preserving relationships between agent states rather than exact reconstruction. Consider using techniques like SimCLR or BYOL adapted to structured state data.
@@ -48,7 +48,7 @@
   
 - **Philosophy of Meaning / Semiotics**: Design evaluation metrics that test for preservation of relationships rather than exact structures. Create "meaning benchmarks" where models must demonstrate semantic equivalence in downstream tasks despite representational differences.
 
-We can ground this in work like:
+We can ground this in works like:
 - **Ballé et al. (Entropy bottleneck)**: Their neural compression framework demonstrates how variational models can learn to prioritize information through a bottleneck, similar to how we want to preserve semantic meaning. We can adapt their end-to-end optimizable compression system to prioritize semantic rather than perceptual loss.
 
 - **VQ-VAEs (van den Oord et al.)**: Vector Quantized VAEs provide discrete latent representations that could help capture symbolic aspects of agent states. Their ability to represent complex distributions through codebook vectors aligns with our goal of finding compressed but meaningful representations.

@@ -442,37 +442,66 @@ class AgentState:
 
 
 class AgentStateDataset:
-    """Dataset for loading and batching agent states."""
+    """Dataset class for agent states."""
 
     def __init__(self, states=None, batch_size=32):
-        """
-        Initialize dataset with agent states.
-
-        Args:
-            states: List of AgentState objects
-            batch_size: Batch size for training
-        """
+        """Initialize dataset with agent states."""
         self.states = states or []
         self.batch_size = batch_size
-        self._current_idx = 0
+        self.states_tensor = None
+        self._initialize_tensors()
+
+    def _initialize_tensors(self):
+        """Convert agent states to tensors for efficient batching."""
+        if self.states:
+            self.states_tensor = torch.stack([state.to_tensor() for state in self.states])
+
+    def __len__(self):
+        """Return the number of agent states in the dataset."""
+        return len(self.states)
+    
+    def __getitem__(self, idx):
+        """Return the idx-th agent state as a tensor."""
+        if self.states_tensor is not None:
+            return (self.states_tensor[idx],)
+        return (self.states[idx].to_tensor(),)
 
     def get_batch(self) -> torch.Tensor:
-        """Get a batch of agent states as tensors."""
-        if not self.states:
-            raise ValueError("Dataset is empty. Load data from database first.")
+        """Get random batch of agent states as tensors."""
+        if self.states_tensor is None or len(self.states_tensor) == 0:
+            raise ValueError("Dataset is empty")
 
-        if self._current_idx >= len(self.states):
-            self._current_idx = 0
-            random.shuffle(self.states)
+        indices = torch.randperm(len(self.states_tensor))[:self.batch_size]
+        return self.states_tensor[indices]
 
-        batch_end = min(self._current_idx + self.batch_size, len(self.states))
-        batch_states = self.states[self._current_idx : batch_end]
-        self._current_idx = batch_end
-
-        # Convert states to tensors
-        tensors = [state.to_tensor() for state in batch_states]
-        return torch.stack(tensors)
-
+    def save(self, file_path: str) -> None:
+        """
+        Save dataset to pickle file.
+        
+        Args:
+            file_path: Path to save the dataset
+        """
+        with open(file_path, 'wb') as f:
+            pickle.dump(self.states, f)
+    
+    @classmethod
+    def load(cls, file_path: str) -> 'AgentStateDataset':
+        """
+        Load dataset from pickle file.
+        
+        Args:
+            file_path: Path to the saved dataset
+            
+        Returns:
+            Loaded dataset
+        """
+        try:
+            with open(file_path, 'rb') as f:
+                states = pickle.load(f)
+            return cls(states=states)
+        except (FileNotFoundError, pickle.UnpicklingError) as e:
+            raise FileNotFoundError(f"Failed to load dataset from {file_path}: {e}")
+    
     def load_from_db(self, db_path: str, limit: Optional[int] = None) -> None:
         """
         Load agent states from simulation database.

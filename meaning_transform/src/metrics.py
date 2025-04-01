@@ -801,3 +801,51 @@ def compute_feature_drift(original_state, reconstructed_state) -> Dict[str, floa
             feature_drift["inventory"] = 1.0 - (intersection / union)
 
     return feature_drift
+
+
+def calculate_semantic_similarity(
+    original: torch.Tensor, reconstructed: torch.Tensor
+) -> Dict[str, float]:
+    """
+    Calculate semantic similarity between original and reconstructed states.
+    
+    This is a convenience wrapper around SemanticLoss.detailed_breakdown
+    
+    Args:
+        original: Original agent state tensor
+        reconstructed: Reconstructed agent state tensor
+        
+    Returns:
+        similarities: Dictionary of feature-specific similarity scores and overall score
+    """
+    from .loss import SemanticLoss
+    loss_module = SemanticLoss()
+    # Get detailed breakdown of semantic loss components
+    loss_breakdown = loss_module.detailed_breakdown(reconstructed, original)
+
+    # Convert losses to similarity scores (1.0 means identical, 0.0 means completely different)
+    similarity_scores = {}
+    for feature, loss in loss_breakdown.items():
+        # Apply exponential decay transformation: score = exp(-loss)
+        # This maps loss of 0 -> score of 1.0, and larger losses -> scores closer to 0
+        similarity_scores[feature] = float(np.exp(-loss))
+
+    # Calculate overall score as weighted average
+    feature_weights = {
+        "position": 1.0,
+        "health": 1.0,
+        "has_target": 1.0,
+        "energy": 1.0,
+        "is_alive": 2.0,  # Higher weight for critical properties
+        "role": 1.5,
+        "threatened": 1.0,
+    }
+
+    total_weight = sum(feature_weights.get(f, 1.0) for f in similarity_scores.keys())
+    weighted_score = sum(
+        similarity_scores[f] * feature_weights.get(f, 1.0)
+        for f in similarity_scores.keys()
+    ) / total_weight
+
+    similarity_scores["overall"] = weighted_score
+    return similarity_scores

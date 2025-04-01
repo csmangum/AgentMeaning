@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.12]
+
+### Added
+
+#### Feature-Weighted Loss Implementation
+- Implemented `FeatureWeightedLoss` class that prioritizes features based on importance scores
+- Added progressive weight adjustment system with linear scheduling during training
+- Created feature-specific loss components using canonical weights from feature importance analysis
+- Implemented comprehensive testing across multiple compression levels (0.5, 1.0, 2.0, 5.0)
+- Discovered significant performance improvements at lower compression levels (+4.77% at 0.5x)
+- Identified degradation patterns at higher compression levels (-10.82% at 5.0x)
+- Added stability tracking for feature-specific losses during training progression
+- Documented compression level thresholds where feature-weighted approach becomes ineffective
+- Created specialized visualization tools for weight progression and feature-specific preservation
+- Identified binary vs. continuous feature preservation divergence patterns
+- Added detailed experiment reports with comprehensive analysis
+- Generated findings document capturing key insights and architectural implications
+
 ## [0.1.11]
 
 ### Added

@@ -38,6 +38,8 @@ This document presents a consolidated view of the most significant findings from
 
 - **Importance-Based Compression Efficacy**: Feature-specific compression model achieved equal overall semantic similarity (0.7647) with 2.4% fewer parameters than baseline, demonstrating successful optimization of the meaning-to-size ratio. [Feature-Specific Compression Experiment](feature-specific-compression.md)
 
+- **Feature-Weighted Loss Efficacy**: Feature-weighted loss showed positive impact at lower compression levels (4.77% improvement at 0.5x), while performance degraded at higher compression levels (-10.82% at 5.0x), demonstrating model capacity requirements for importance-based approaches. [Feature-Weighted Loss Implementation](feature-weighted-loss.md)
+
 ## Architectural Insights
 
 - **Constant Model Size**: Model size remains constant (422.7 KB) across compression levels, suggesting disconnection between theoretical compression and implementation. [Compression Level Experiment](compresison-level-1.md)
@@ -72,12 +74,17 @@ This document presents a consolidated view of the most significant findings from
 
 - **Semantic Weight-Compression Synergy**: Higher semantic weights (2.0) disproportionately improve meaning retention specifically at optimal compression levels (1.0), suggesting a synergistic relationship between compression balance and semantic focus.
 
+- **Loss Function-Architecture Interdependence**: Feature-weighted loss implementation revealed that loss function adjustments alone cannot overcome architectural limitations, particularly for spatial features that showed no improvement despite receiving highest weight priority, indicating that effective meaning preservation requires coordinated loss function and architecture design. [Feature-Weighted Loss Implementation](feature-weighted-loss.md)
+
 ## Next Research Directions
 
 - Develop standardized semantic drift measurement framework to provide consistent evaluation across experiments
 - Implement feature-weighted loss functions that prioritize high-importance features in the training process
 - Create specialized spatial feature optimization techniques given their 55.4% dominance in meaning preservation
 - Extend feature importance analysis to examine interactions between feature types
+- Develop feature-type specific encoding strategies to address the divergent preservation characteristics observed between binary and continuous features
+- Create adaptive weighting systems that dynamically adjust feature priorities based on training stability metrics
+- Investigate the capacity threshold relationship between model size, compression level, and feature-weighted optimization effectiveness
 - Develop more sophisticated meaning metrics beyond reconstruction loss that better capture semantic preservation
 - Investigate cross-domain transfer capabilities to test meaning preservation across different environments
 - Build self-adaptive compression systems that automatically determine optimal compression strategies

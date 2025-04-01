@@ -31,6 +31,13 @@ This document tracks all research questions from our experiments and their answe
 6. Is there a correlation between a feature's intrinsic complexity and its optimal compression strategy?
 7. How might multi-stage compression approaches with progressive feature prioritization improve results?
 
+### Understanding as Regenerative Compression
+1. What is the optimal compression ratio for different types of information to facilitate understanding?
+2. How do we distinguish between memorization (lossless compression) and true understanding (lossy but meaning-preserving compression)?
+3. Can we quantify the relationship between compression efficiency and generalization capability?
+4. How does regenerative compression in artificial systems compare to human conceptual understanding?
+5. What role does noise and variability play in developing robust regenerative capabilities?
+
 ## Answered Questions
 
 1. **What is the optimal balance between reconstruction accuracy and semantic preservation?**

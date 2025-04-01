@@ -1,8 +1,13 @@
 # **Validation Layer: Overview**
 
-This isn’t traditional evaluation like accuracy or reconstruction loss. This is about **semantic stability**, **interpretive coherence**, and **relevance potential** across compression and transformation.
+> **Implementation Status**: 
+> - **Structural Coherence**: Partially implemented. Cluster analysis and trajectory preservation visualization are available in the codebase, but the Adjusted Rand Index comparison is not yet fully integrated.
+> - **Interpretive Fidelity**: Planned but not yet implemented. The human-in-the-loop evaluation framework is documented here as a roadmap.
+> - **Functional Generalization**: Partially implemented. Some behavioral equivalence testing infrastructure exists, but the full testing suite for downstream task performance is still in development.
 
-We’ll use three complementary validation lenses:
+This isn't traditional evaluation like accuracy or reconstruction loss. This is about **semantic stability**, **interpretive coherence**, and **relevance potential** across compression and transformation.
+
+We'll use three complementary validation lenses:
 
 ---
 
@@ -24,7 +29,7 @@ We’ll use three complementary validation lenses:
 **Methods:**
 - **Latent Reconstruction Challenge:** Present compressed representations and ask users to match or reconstruct original state features.
 - **Comparative Insight Task:** Show human evaluators two reconstructions (from original and transformed) and ask which preserves intended behavior more clearly.
-- **Annotation Drift Test:** Human annotators label high-level patterns (e.g., “agent is exploring” vs “agent is escaping”) — track drift across layers.
+- **Annotation Drift Test:** Human annotators label high-level patterns (e.g., "agent is exploring" vs "agent is escaping") — track drift across layers.
 
 **Affordance Question:** *Can a mind still find meaning in the transformed form?*
 
@@ -54,7 +59,7 @@ We’ll use three complementary validation lenses:
 
 ## **Semantic Field Map**
 
-Each **field** in the agent state can serve one or more **semantic functions** — things like identity, orientation, intention, or memory. Here’s a draft mapping:
+Each **field** in the agent state can serve one or more **semantic functions** — things like identity, orientation, intention, or memory. Here's a draft mapping:
 
 | **Field Name**        | **Type**       | **Semantic Function**                            | **Why It Matters**                                                                 |
 |-----------------------|----------------|--------------------------------------------------|-------------------------------------------------------------------------------------|

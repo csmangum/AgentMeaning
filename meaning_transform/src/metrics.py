@@ -801,3 +801,22 @@ def compute_feature_drift(original_state, reconstructed_state) -> Dict[str, floa
             feature_drift["inventory"] = 1.0 - (intersection / union)
 
     return feature_drift
+
+
+def calculate_semantic_similarity(
+    original: torch.Tensor, reconstructed: torch.Tensor
+) -> Dict[str, float]:
+    """
+    Calculate semantic similarity between original and reconstructed states.
+    
+    This is a convenience wrapper around SemanticMetrics.compute_equivalence_scores
+    
+    Args:
+        original: Original agent state tensor
+        reconstructed: Reconstructed agent state tensor
+        
+    Returns:
+        similarities: Dictionary of feature-specific similarity scores and overall score
+    """
+    metrics = SemanticMetrics()
+    return metrics.compute_equivalence_scores(original, reconstructed)

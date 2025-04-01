@@ -5,6 +5,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.15]
+
+### Added
+
+#### Models Module Refinement
+- Restructured core neural networks into a dedicated models module with modular components
+- Implemented MeaningVAE as central orchestration model with support for both vector and graph inputs
+- Created specialized Encoder and Decoder modules with configurable architectures
+- Implemented two compression strategies:
+  - EntropyBottleneck providing information-theoretic compression with adaptive levels
+  - VectorQuantizer implementing discrete latent representation with codebook learning
+- Added integrated support for PyTorch Geometric for graph-based representations
+- Enhanced models with comprehensive documentation in README.md
+- Improved model architecture to align with the project's "digital body" metaphor
+- Optimized parameter initialization for stable training across compression levels
+- Added flexible configuration options for all model components
+
+## [0.1.14]
+
+### Added
+
+#### Modular Pipeline Architecture
+- Implemented flexible `Pipeline` framework for chainable data transformations
+- Created base `PipelineComponent` abstract class for consistent component interface
+- Implemented specialized components for encoding, compression, decoding, and graph conversion
+- Added conditional processing with `ConditionalComponent` for type-specific handling
+- Implemented parallel processing with `BranchComponent` for feature-specific transformations
+- Created `PipelineFactory` with common pipeline configurations
+- Added comprehensive documentation and example usage
+- Implemented test suite for verifying pipeline components
+- Added features for pipeline composition, modification, and extension
+- Created example demonstrating feature-specific processing pipelines
+
+## [0.1.13]
+
+### Added
+
+#### Enhanced Compression Experiments Framework
+- Updated compression experiment system to support adaptive models and graph-based representations
+- Integrated `AdaptiveMeaningVAE` with parameter count tracking and efficiency analysis
+- Added visualization improvements including radar charts, parameter efficiency plots, and category analysis
+- Implemented comprehensive semantic evaluation with standardized metrics framework
+- Added behavioral metrics integration for semantic-behavioral correlation analysis
+- Enhanced report generation with adaptive model analysis and feature-specific preservation metrics
+- Implemented detailed feature-group analysis with preservation, fidelity, and drift metrics
+- Added command-line arguments for adaptive modeling, graph-based experiments, and custom compression levels
+- Created enhanced visualizations for comparing metrics across compression levels 
+- Optimized evaluation pipeline with improved baseline tracking for drift measurement
+- Generated more informative experiment reports with clear recommendations based on comprehensive metrics
+
 ## [0.1.12]
 
 ### Added

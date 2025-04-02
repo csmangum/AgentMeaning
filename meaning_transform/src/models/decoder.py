@@ -58,6 +58,20 @@ class Decoder(nn.Module):
         Returns:
             x_reconstructed: Reconstructed agent state
         """
+        # Validate input
+        if not isinstance(z, torch.Tensor):
+            raise TypeError(f"Expected torch.Tensor, got {type(z)}")
+        if z.dim() != 2 or z.size(1) != self.latent_dim:
+            raise ValueError(f"Expected shape (batch_size, {self.latent_dim}), got {z.shape}")
+        if z.size(0) < 1:
+            raise ValueError(f"Batch size must be at least 1, got {z.size(0)}")
+            
+        # Check for NaN or infinity values
+        if torch.isnan(z).any():
+            raise ValueError("Input tensor contains NaN values")
+        if torch.isinf(z).any():
+            raise ValueError("Input tensor contains infinity values")
+        
         x = self.decoder(z)
         x_reconstructed = self.final_layer(x)
 

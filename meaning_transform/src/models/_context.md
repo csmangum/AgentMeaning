@@ -14,6 +14,8 @@ The central model of the system, implementing a Variational Autoencoder specific
 - Interfaces for encoding, decoding, and measuring compression rates
 - Reparameterization trick for sampling from latent distributions
 - Configurable batch normalization and seed for reproducibility
+- Integration with `AgentStateToGraph` for converting agent states to knowledge graph format
+- Support for various GNN architectures (GCN, GAT, SAGE, GIN) for graph processing
 
 ### AdaptiveMeaningVAE (`adaptive_meaning_vae.py`)
 
@@ -32,6 +34,8 @@ A specialized VAE that applies different compression rates to different feature 
 - Provides detailed analysis of per-group compression performance
 - Balances overall compression with semantic preservation priorities
 - Dynamically allocates latent space dimensions to feature groups based on importance
+- Uses proportional distribution of latent dimensions based on feature group significance
+- Sorts groups by compression value to prioritize important features during dimension allocation
 
 ### Encoder (`encoder.py`)
 
@@ -79,6 +83,28 @@ Advanced entropy bottleneck that dynamically adjusts its structure based on comp
 - Provides metrics for effective dimension and compression rate
 - Supports deterministic compression during inference
 - Efficiently compresses information through reduced dimensionality
+- Uses projection layers with adaptive dimensions based on compression level
+- Includes validation for already-compressed inputs to avoid double compression
+
+## Graph Neural Network Components
+
+The models integrate with graph neural network capabilities from `meaning_transform/src/graph_model.py`:
+
+### GraphEncoder 
+- Processes knowledge graphs using various GNN layers (GCN, GAT, SAGE, GIN)
+- Supports edge attributes for rich relational information
+- Provides both node-level and graph-level embeddings
+- Applies configurable pooling methods (mean, max, add)
+
+### GraphDecoder
+- Reconstructs node features from latent embeddings
+- Predicts edge existence and edge attributes
+- Creates pairwise node connections for comprehensive graph reconstruction
+
+### VGAE (Variational Graph Autoencoder)
+- Combines graph encoding and decoding in a variational framework
+- Preserves relational information during compression
+- Handles both node features and graph structure
 
 ## Utility Components
 
@@ -90,8 +116,37 @@ Utility functions and base classes for the compression system:
 - `set_temp_seed`: Utility for temporarily setting random seed for reproducibility
 - Various helper functions for data processing and metric calculation
 
+## Knowledge Graph Integration
+
+The models, particularly `MeaningVAE`, integrate with the knowledge graph components from `meaning_transform/src/knowledge_graph.py`:
+
+### AgentStateToGraph
+- Converts agent states to NetworkX graph representations
+- Handles relational information between agents and properties
+- Maps agent attributes to node and edge features
+- Provides conversion to PyTorch Geometric data format
+- Supports both individual agent conversion and multi-agent relationship modeling
+
 ## Usage
 
 The models in this module form the core of the transformation system, allowing agent states to be encoded, compressed, and reconstructed while preserving their semantic meaning. The system supports both traditional vector-based representations and graph-structured data through integration with PyTorch Geometric.
 
-The architecture is designed for modularity, allowing different compression techniques to be swapped in or combined based on specific requirements. The adaptive and feature-grouped approaches provide additional flexibility for balancing compression with semantic preservation. 
+The architecture is designed for modularity, allowing different compression techniques to be swapped in or combined based on specific requirements. The adaptive and feature-grouped approaches provide additional flexibility for balancing compression with semantic preservation.
+
+## Relation to System Architecture
+
+These models implement the core neural components described in the project README's "System Architecture Overview":
+
+```
+[Agent State (dict)] 
+      ↓ serialize
+[Binary Representation]
+      ↓ encoder (VAE)
+[Latent Space]
+      ↓ entropy model / quantization
+[Compressed Code]
+      ↑ decode & reconstruct
+[Reconstructed State (as dict)]
+```
+
+The focus throughout is on preserving semantic meaning rather than just structural fidelity, aligning with the project's core hypothesis about intelligent agents using compression to preserve only the most relevant features for future inference and planning. 

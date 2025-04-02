@@ -60,6 +60,20 @@ class Encoder(nn.Module):
             mu: Mean of latent representation
             log_var: Log variance of latent representation
         """
+        # Validate input
+        if not isinstance(x, torch.Tensor):
+            raise TypeError(f"Expected torch.Tensor, got {type(x)}")
+        if x.dim() != 2 or x.size(1) != self.input_dim:
+            raise ValueError(f"Expected shape (batch_size, {self.input_dim}), got {x.shape}")
+        if x.size(0) < 1:
+            raise ValueError(f"Batch size must be at least 1, got {x.size(0)}")
+            
+        # Check for NaN or infinity values
+        if torch.isnan(x).any():
+            raise ValueError("Input tensor contains NaN values")
+        if torch.isinf(x).any():
+            raise ValueError("Input tensor contains infinity values")
+        
         x = self.encoder(x)
         mu = self.mu(x)
         log_var = self.log_var(x)

@@ -3,6 +3,7 @@ from typing import Any, Dict, Tuple, Union
 import numpy as np
 import torch
 import torch.nn as nn
+import torch_geometric
 from torch_geometric.data import Batch, Data
 
 from meaning_transform.src.graph_model import VGAE, GraphDecoder, GraphEncoder
@@ -184,7 +185,18 @@ class MeaningVAE(nn.Module, BaseModelIO):
             raise ValueError(
                 f"Expected tensor shape (batch_size, {self.input_dim}), got {x.shape}"
             )
-
+            
+        # Validate graph input when use_graph is enabled
+        if self.use_graph:
+            if isinstance(x, torch.Tensor) and not hasattr(self, 'graph_converter'):
+                raise ValueError("Graph converter not initialized but tensor input provided with use_graph=True")
+            elif isinstance(x, (Data, Batch)):
+                # Check for required graph attributes
+                if not hasattr(x, 'x') or not isinstance(x.x, torch.Tensor):
+                    raise ValueError("Graph input missing node features ('x' attribute)")
+                if not hasattr(x, 'edge_index') or not isinstance(x.edge_index, torch.Tensor):
+                    raise ValueError("Graph input missing edge indices ('edge_index' attribute)")
+                    
         results = {}
 
         # Handle graph data
@@ -196,7 +208,6 @@ class MeaningVAE(nn.Module, BaseModelIO):
             results["mu"] = graph_results["mu"]
             results["log_var"] = graph_results["log_var"]
             results["z"] = graph_results["z"]
-            results["reconstruction"] = graph_results["node_features"]
             results["edge_pred"] = graph_results["edge_pred"]
             results["edge_attr_pred"] = graph_results["edge_attr_pred"]
 
@@ -214,11 +225,22 @@ class MeaningVAE(nn.Module, BaseModelIO):
                     z_compressed, compression_loss = self.compression(results["z"])
                     results["z_compressed"] = z_compressed
                     results["compression_loss"] = compression_loss
+                    
+                    # Decode from compressed representation
+                    decoded_features = self.graph_decoder(z_compressed)
+                    results["reconstruction"] = decoded_features
                 elif self.compression_type == "vq":
                     z_quantized, vq_loss, perplexity = self.compression(results["z"])
                     results["z_compressed"] = z_quantized
                     results["quantization_loss"] = vq_loss
                     results["perplexity"] = perplexity
+                    
+                    # Decode from quantized representation
+                    decoded_features = self.graph_decoder(z_quantized)
+                    results["reconstruction"] = decoded_features
+            else:
+                # No compression, use original reconstruction
+                results["reconstruction"] = graph_results["node_features"]
 
             return results
 
@@ -249,13 +271,14 @@ class MeaningVAE(nn.Module, BaseModelIO):
                 results["z_compressed"] = z_quantized
                 results["quantization_loss"] = vq_loss
                 results["perplexity"] = perplexity
-
+                
                 # Decode from quantized representation
                 reconstruction = self.decoder(z_quantized)
         else:
-            # No compression, decode directly from z
+            # If no compression, decode directly from z
             reconstruction = self.decoder(z)
-
+            
+        # Store the reconstruction
         results["reconstruction"] = reconstruction
         return results
 
@@ -348,7 +371,7 @@ class MeaningVAE(nn.Module, BaseModelIO):
         )
         return config
 
-    def convert_agent_to_graph(self, agent_state):
+    def convert_agent_to_graph(self, agent_state) -> 'torch_geometric.data.Data':
         """
         Convert an agent state to graph representation.
 
@@ -360,6 +383,9 @@ class MeaningVAE(nn.Module, BaseModelIO):
         """
         if not self.use_graph:
             raise ValueError("Model not configured for graph representation")
+            
+        if not hasattr(self, 'graph_converter') or self.graph_converter is None:
+            raise AttributeError("graph_converter is not initialized. Make sure use_graph=True and the model is properly initialized.")
 
         # Convert agent state to NetworkX graph
         nx_graph = self.graph_converter.agent_to_graph(agent_state)
@@ -367,7 +393,7 @@ class MeaningVAE(nn.Module, BaseModelIO):
         # Convert to PyTorch Geometric Data
         return self.graph_converter.to_torch_geometric(nx_graph)
 
-    def convert_agents_to_graph(self, agent_states):
+    def convert_agents_to_graph(self, agent_states) -> 'torch_geometric.data.Data':
         """
         Convert multiple agent states to a single graph representation.
 
@@ -379,6 +405,9 @@ class MeaningVAE(nn.Module, BaseModelIO):
         """
         if not self.use_graph:
             raise ValueError("Model not configured for graph representation")
+            
+        if not hasattr(self, 'graph_converter') or self.graph_converter is None:
+            raise AttributeError("graph_converter is not initialized. Make sure use_graph=True and the model is properly initialized.")
 
         # Convert agent states to NetworkX graph
         nx_graph = self.graph_converter.agents_to_graph(agent_states)

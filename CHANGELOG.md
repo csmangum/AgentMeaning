@@ -5,6 +5,188 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.26]
+
+### Added
+
+#### Model Improvements
+- Added `adapt_config` parameter to BaseModelIO.load() method to control adaptation of model configuration
+- Made AdaptiveEntropyBottleneck truly idempotent by detecting already compressed values
+- Added comprehensive NaN/infinity validation to all model components:
+  - Added strict validation in Encoder forward method that raises ValueError for NaN/infinity
+  - Added strict validation in Decoder forward method that raises ValueError for NaN/infinity
+  - Added validation in FeatureGroupedVAE's forward, encode, and decode methods
+- Added use_batch_norm to adaptable parameters list in BaseModelIO
+- Enhanced FeatureGroupedVAE with minimum dimension control:
+  - Added `min_group_dim` parameter to control minimum allowed dimensions per feature group
+  - Implemented comprehensive checks to prevent groups from falling below minimum threshold
+  - Added dynamic latent dimension adjustment when all groups are at minimum
+  - Improved dimension reduction logic with better group selection for reductions
+  - Added detailed logging for dimension allocation decisions
+
+### Fixed
+
+#### Compression Behavior Improvements
+- Improved AdaptiveEntropyBottleneck to detect quantized values using fractional part analysis
+- Fixed double compression behavior in AdaptiveEntropyBottleneck by adding early return for already compressed inputs
+- Added epsilon threshold buffer to reliably detect quantized values
+
+## [0.1.25]
+
+### Fixed
+
+#### Comprehensive Models Module Improvements
+- Fixed Vector Quantizer perplexity calculation with improved numerical stability approach
+- Fixed inconsistent latent space handling in MeaningVAE to ensure reconstruction always uses compressed representation
+- Removed redundant compression in AdaptiveEntropyBottleneck to prevent excessive information loss
+- Improved seed handling in FeatureGroupedVAE for consistent reproducibility
+- Added proper input validation to FeatureGroupedVAE's forward method
+- Enhanced BaseModelIO.load() method with intelligent configuration adaptation:
+  - Added critical vs adaptable parameter distinction for safer model loading
+  - Implemented clear error raising for incompatible dimensions
+  - Added model type compatibility checking with VAE family recognition
+  - Created detailed adaptation logging with clear warnings
+  - Added override points for customizing compatibility logic in subclasses
+
+#### Input Validation Enhancements
+- Added comprehensive input validation in Encoder forward method
+- Added comprehensive input validation in Decoder forward method 
+- Fixed and enhanced validation in BaseModelIO.load() for more reliable model loading
+- Added additional validation in AdaptiveEntropyBottleneck initialization
+- Enhanced graph-specific validation in MeaningVAE for proper graph attribute checking
+- Implemented standardized input validation across all model components
+- Added detailed error messages to improve debugging experience
+
+## [0.1.24]
+
+### Fixed
+
+#### MeaningVAE Improvements
+- Fixed inconsistent latent space handling in graph data path to properly decode from compressed representation
+- Added missing torch_geometric import to resolve type annotation error
+- Ensured consistent behavior between tensor and graph paths when using compression
+- Improved consistency of reconstruction outputs across all model configurations
+
+## [0.1.23]
+
+### Added
+
+#### Enhanced Test Coverage
+- Added comprehensive test suite for AdaptiveMeaningVAE including drift adaptation mechanism
+- Implemented dedicated tests for FeatureGroupedVAE with semantic and type-based grouping
+- Added standalone tests for Encoder and Decoder components
+- Created detailed VectorQuantizer tests including gradient flow verification
+- Implemented utility function tests for KL divergence, reparameterization, and feature grouping
+- Enhanced test output with detailed metrics and component-specific validation
+- Standardized test structure across all model components
+- Added train/eval mode consistency verification for all models
+
+## [0.1.22]
+
+### Added
+
+#### Modular Utilities Framework
+- Implemented `CompressionBase` class for standardized behavior across compression methods
+- Created `BaseModelIO` class to standardize model serialization and loading
+- Added `set_temp_seed` context manager for consistent random seed handling
+
+### Fixed
+
+#### Comprehensive Architecture Improvements
+- Standardized behavior between training and inference modes across all models
+- Implemented consistent input validation with proper error messages
+- Fixed seed handling to preserve random state consistently across all operations
+- Enhanced numerical stability in compression loss calculations
+- Made the reparameterization method consistent across all model variants
+
+#### EntropyBottleneck Fixes
+- Fixed inconsistencies in quantization behavior during inference
+- Improved numerical stability in all bottleneck implementations
+- Enhanced deterministic rounding for better consistency
+
+#### AdaptiveEntropyBottleneck Refinements
+- Fixed inconsistent quantization between training and inference
+- Standardized behavior with other bottleneck implementations
+- Improved noise handling during training for better consistency
+
+#### MeaningVAE and AdaptiveMeaningVAE Enhancements
+- Standardized encoding/decoding behavior across all model variants
+- Implemented consistent graph data handling
+- Added proper parameter validation throughout
+
+## [0.1.21]
+
+### Fixed
+
+#### VectorQuantizer Improvements
+- Replaced the inefficient distance calculation with `torch.cdist` for better performance and memory efficiency
+- Added proper handling for unused codebook entries in the perplexity calculation to prevent potential division by zero
+- Improved numerical stability of the perplexity calculation
+
+## [0.1.20]
+
+### Fixed
+
+#### AdaptiveMeaningVAE Fixes
+- Fixed inconsistency in encode method to use different behavior between training and inference modes
+- Enhanced forward method to properly compress mu during inference rather than sampled z for consistency
+- Improved load method with compatibility checks for model architecture and configuration
+- Added detailed warnings for mismatched configuration parameters during model loading
+- Ensured consistent behavior between encode, forward, and reparameterize methods
+
+## [0.1.19]
+
+### Fixed
+
+#### FeatureGroupedVAE Improvements
+- Fixed feature group unpacking in `get_feature_group_analysis` method to properly handle dictionary access
+- Improved latent dimension allocation with a two-pass approach to ensure exact match with specified latent_dim
+- Enhanced overall compression rate calculation to use a weighted average based on feature counts for more meaningful metrics
+- Optimized dimension distribution logic to prioritize groups with lower compression values
+- Added more robust feature group handling throughout the model
+
+## [0.1.18]
+
+### Fixed
+
+#### Comprehensive Model Fixes
+- Added proper support for the "adaptive_entropy" compression type in MeaningVAE
+- Fixed inconsistency in encode method between training and inference modes
+- Improved numerical stability across all bottleneck implementations
+- Standardized compression behavior between EntropyBottleneck and AdaptiveEntropyBottleneck
+- Enhanced deterministic rounding in EntropyBottleneck for consistent quantization
+- Fixed scaling issues in EntropyBottleneck by using torch.log instead of numpy.log for device compatibility
+- Optimized AdaptiveEntropyBottleneck seed handling to prevent global random state modification
+- Made KL loss calculation consistent between graph and non-graph paths
+
+## [0.1.17]
+
+### Fixed
+
+#### AdaptiveEntropyBottleneck Refinements
+- Improved seed handling in AdaptiveEntropyBottleneck to use a generator-based approach for better reproducibility
+- Fixed deterministic quantization during inference to ensure proper rounding of latent representations
+- Enhanced consistency between training and inference modes for more reliable state reconstruction
+- Improved device compatibility with conditional handling for MPS devices
+- Optimized training-inference pipeline for more consistent reconstruction quality
+
+## [0.1.16]
+
+### Fixed
+
+#### Entropy Bottleneck Improvements
+- Fixed scaling inconsistency between training and inference modes in EntropyBottleneck
+- Improved numerical stability in compression loss calculation for both EntropyBottleneck and AdaptiveEntropyBottleneck
+- Fixed redundant seed handling in AdaptiveEntropyBottleneck that affected global random state
+- Enhanced quantization behavior in AdaptiveEntropyBottleneck for more consistent behavior
+
+#### Test Suite Enhancements
+- Added dedicated tests for EntropyBottleneck and AdaptiveEntropyBottleneck classes
+- Implemented numerical stability tests with extreme values
+- Added tests for consistency between training and inference modes
+- Enhanced test coverage for AdaptiveEntropyBottleneck with parameter count verification
+- Added deterministic behavior verification in evaluation mode
+
 ## [0.1.15]
 
 ### Added
@@ -18,7 +200,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - VectorQuantizer implementing discrete latent representation with codebook learning
 - Added integrated support for PyTorch Geometric for graph-based representations
 - Enhanced models with comprehensive documentation in README.md
-- Improved model architecture to align with the project's "digital body" metaphor
+- Improved model architecture to align with the project's conceptual framework
 - Optimized parameter initialization for stable training across compression levels
 - Added flexible configuration options for all model components
 

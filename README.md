@@ -27,16 +27,16 @@
   The idea that what constitutes "meaning" is precisely what remains constant when information undergoes various transformations. If the essential properties persist across different forms of representation, those properties constitute meaning. [Read more](docs/concepts/meaning_as_invariance.md)
   
 - **Latent space as structured essence**  
-  The compressed representation in latent space captures not just data patterns but the underlying semantic structure that gives rise to those patterns. This essence is what allows reconstruction of behaviorally equivalent states.
+  The compressed representation in latent space captures not just data patterns but the underlying semantic structure that gives rise to those patterns. This essence is what allows reconstruction of behaviorally equivalent states. [Read more](docs/concepts/latent_space_as_structured_essence.md)
   
 - **Compression as semantic distillation**  
-  The process of compression forces a system to prioritize what's most important, naturally separating signal from noise. This distillation process naturally preserves semantic content over superficial details.
+  The process of compression forces a system to prioritize what's most important, naturally separating signal from noise. This distillation process naturally preserves semantic content over superficial details. [Read more](docs/concepts/compression_as_semantic_distillation.md)
   
 - **Intuition as learned, reversible mapping across modalities**  
-  Intuition emerges from the ability to translate between different representational forms without losing critical information. This mapping becomes more efficient and accurate as the system learns which features matter most.
+  Intuition emerges from the ability to translate between different representational forms without losing critical information. This mapping becomes more efficient and accurate as the system learns which features matter most. [Read more](docs/concepts/intuition_as_learned_reversible_mapping.md)
 
 - **Understanding as regenerative compression**  
-  True understanding emerges when an agent can distill something to its essential properties and then expand it back in a way that preserves behavioral and perceptual equivalence. Understanding isn't about perfect recall of details, but about extracting patterns that allow meaningful reconstruction. We "understand" when we can compress to essence and regenerate equivalence.
+  True understanding emerges when an agent can distill something to its essential properties and then expand it back in a way that preserves behavioral and perceptual equivalence. Understanding isn't about perfect recall of details, but about extracting patterns that allow meaningful reconstruction. We "understand" when we can compress to essence and regenerate equivalence. [Read more](docs/concepts/understanding_as_regenerative_compression.md)
 
 ### Relevant Fields:
 - **Representation Learning**: Implement contrastive learning objectives that focus on preserving relationships between agent states rather than exact reconstruction. Consider using techniques like SimCLR or BYOL adapted to structured state data.

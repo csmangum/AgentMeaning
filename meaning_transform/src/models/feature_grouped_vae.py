@@ -9,9 +9,10 @@ from meaning_transform.src.models.adaptive_entropy_bottleneck import (
 )
 from meaning_transform.src.models.decoder import Decoder
 from meaning_transform.src.models.encoder import Encoder
+from meaning_transform.src.models.utils import BaseModelIO
 
 
-class FeatureGroupedVAE(nn.Module):
+class FeatureGroupedVAE(nn.Module, BaseModelIO):
     """
     VAE model that applies different compression rates to different feature groups based on importance.
     This allows for better semantic preservation of high-importance features.
@@ -90,16 +91,33 @@ class FeatureGroupedVAE(nn.Module):
 
         # Distribute remaining dimensions to groups proportionally
         if remaining != 0:
+            # Sort groups by compression value (lower compression = higher importance)
             sorted_groups = sorted(
                 intended_dims.items(),
-                key=lambda x: feature_groups[x[0]][
-                    2
-                ],  # Sort by compression value (lower first)
+                key=lambda x: feature_groups[x[0]][2],  # Sort by compression value
             )
-
-            for i in range(abs(remaining)):
-                group_name = sorted_groups[i % len(sorted_groups)][0]
-                intended_dims[group_name] += 1 if remaining > 0 else -1
+            
+            if remaining > 0:
+                # Add extra dimensions to important groups first
+                for i in range(remaining):
+                    group_name = sorted_groups[i % len(sorted_groups)][0]
+                    intended_dims[group_name] += 1
+            else:
+                # Take dimensions from less important groups first (reverse order)
+                # Sort by descending importance (higher compression = lower importance)
+                sorted_groups.reverse()
+                for i in range(abs(remaining)):
+                    group_name = sorted_groups[i % len(sorted_groups)][0]
+                    # Ensure we don't reduce any group below 1 dimension
+                    if intended_dims[group_name] > 1:
+                        intended_dims[group_name] -= 1
+                    else:
+                        # If we can't take from this group, try the next one
+                        for j in range(len(sorted_groups)):
+                            next_group = sorted_groups[(i + j) % len(sorted_groups)][0]
+                            if intended_dims[next_group] > 1:
+                                intended_dims[next_group] -= 1
+                                break
 
         # Second pass: create bottlenecks with corrected dimensions
         for i, name in enumerate(group_names):
@@ -131,12 +149,13 @@ class FeatureGroupedVAE(nn.Module):
 
     def reparameterize(self, mu: torch.Tensor, log_var: torch.Tensor) -> torch.Tensor:
         """Reparameterization trick to sample from latent distribution."""
+        std = torch.exp(0.5 * log_var)
+
         if self.training:
-            std = torch.exp(0.5 * log_var)
-            if self.seed is not None:
-                # Use deterministic noise when seed is set
-                torch.manual_seed(self.seed)
-            eps = torch.randn_like(std)
+            # Always use the set_temp_seed context manager for consistency
+            from meaning_transform.src.models.utils import set_temp_seed
+            with set_temp_seed(self.seed):
+                eps = torch.randn_like(std)
             z = mu + eps * std
             return z
         else:
@@ -145,6 +164,20 @@ class FeatureGroupedVAE(nn.Module):
 
     def forward(self, x: torch.Tensor) -> Dict[str, Any]:
         """Forward pass through the feature-grouped VAE model."""
+        # Validate input
+        if not isinstance(x, torch.Tensor):
+            raise TypeError(f"Expected torch.Tensor, got {type(x)}")
+        if x.dim() != 2 or x.size(1) != self.input_dim:
+            raise ValueError(f"Expected shape (batch_size, {self.input_dim}), got {x.shape}")
+        if x.size(0) < 1:
+            raise ValueError(f"Batch size must be at least 1, got {x.size(0)}")
+            
+        # Check for NaN or infinity values
+        if torch.isnan(x).any():
+            raise ValueError("Input tensor contains NaN values")
+        if torch.isinf(x).any():
+            raise ValueError("Input tensor contains infinity values")
+        
         # Encode input to latent space
         mu, log_var = self.encoder(x)
 
@@ -192,6 +225,12 @@ class FeatureGroupedVAE(nn.Module):
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         """Encode an input tensor to compressed latent space."""
+        # Check for NaN or infinity values
+        if torch.isnan(x).any():
+            raise ValueError("Input tensor contains NaN values")
+        if torch.isinf(x).any():
+            raise ValueError("Input tensor contains infinity values")
+        
         mu, log_var = self.encoder(x)
         z = self.reparameterize(mu, log_var)
 
@@ -220,36 +259,13 @@ class FeatureGroupedVAE(nn.Module):
         Returns:
             reconstruction: Reconstructed output
         """
+        # Check for NaN or infinity values
+        if torch.isnan(z).any():
+            raise ValueError("Input tensor contains NaN values")
+        if torch.isinf(z).any():
+            raise ValueError("Input tensor contains infinity values")
+        
         return self.decoder(z)
-
-    def save(self, filepath: str) -> None:
-        """Save model to file."""
-        model_data = {
-            "state_dict": self.state_dict(),
-            "config": {
-                "input_dim": self.input_dim,
-                "latent_dim": self.latent_dim,
-                "feature_groups": self.feature_groups,
-                "base_compression_level": self.base_compression_level,
-                "seed": self.seed,
-            },
-        }
-        torch.save(model_data, filepath)
-
-    def load(self, filepath: str) -> None:
-        """Load model from file."""
-        model_data = torch.load(filepath)
-
-        # Load config if available
-        if "config" in model_data and "seed" in model_data["config"]:
-            self.seed = model_data["config"]["seed"]
-
-        # Load state dict
-        if "state_dict" in model_data:
-            self.load_state_dict(model_data["state_dict"])
-        else:
-            # Handle old model format
-            self.load_state_dict(model_data)
 
     def get_compression_rate(self) -> Dict[str, float]:
         """Get the effective compression rate for each feature group."""
@@ -299,3 +315,22 @@ class FeatureGroupedVAE(nn.Module):
             }
 
         return analysis
+
+    def get_config(self) -> Dict[str, Any]:
+        """Return model configuration as a dictionary."""
+        config = super().get_config()
+        # Add FeatureGroupedVAE specific configuration
+        config.update({
+            "feature_groups": self.feature_groups,
+            "base_compression_level": self.base_compression_level,
+            "use_batch_norm": self.use_batch_norm,
+        })
+        return config
+
+    def save(self, filepath: str) -> None:
+        """Save model to file."""
+        super().save(filepath)
+
+    def load(self, filepath: str) -> None:
+        """Load model from file."""
+        super().load(filepath)

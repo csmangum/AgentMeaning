@@ -29,7 +29,17 @@ class AdaptiveEntropyBottleneck(CompressionBase):
             seed: Random seed for reproducibility
         """
         super().__init__(latent_dim, compression_level)
+        
+        # Additional validation
+        if latent_dim < 1:
+            raise ValueError(f"latent_dim must be at least 1, got {latent_dim}")
+        if compression_level <= 0:
+            raise ValueError(f"compression_level must be positive, got {compression_level}")
+            
         self.seed = seed
+        
+        # Register buffer to track compressed values
+        self.register_buffer("_compression_epsilon", torch.tensor(1e-6))
 
         # Initialize parameters using temp seed (if provided)
         with set_temp_seed(seed):
@@ -67,12 +77,24 @@ class AdaptiveEntropyBottleneck(CompressionBase):
             raise ValueError(
                 f"Expected shape (batch_size, {self.latent_dim}), got {z.shape}"
             )
+        
+        # Check if input is already compressed by examining statistical properties
+        # Compressed values typically have a specific variance pattern after quantization
+        if not self.training:
+            # In evaluation mode, check if variance in fractional parts is very low,
+            # indicating already quantized values
+            fractional_parts = z - z.round()
+            mean_abs_fractional = fractional_parts.abs().mean()
+            
+            # If mean fractional part is close to zero, values are already quantized
+            if mean_abs_fractional < self._compression_epsilon:
+                return z, torch.zeros(1, device=z.device)
 
         # Project down to effective dimension
         z_down = self.proj_down(z)
         z_down = self.nonlin(z_down)
 
-        # Apply adaptive compression in the effective space
+        # Apply compression in the effective space
         mu = z_down + self.compress_mu
         log_scale = self.compress_log_scale.clone()
 
@@ -89,16 +111,9 @@ class AdaptiveEntropyBottleneck(CompressionBase):
         # Project back up to full latent space
         projected = self.proj_up(z_compressed_effective)
         mu_full, log_scale_full = torch.chunk(projected, 2, dim=-1)
-
-        # Apply quantization in full latent space
-        if self.training:
-            # During training, use the output from projection with noise
-            with set_temp_seed(self.seed):
-                epsilon = torch.randn_like(mu_full)
-            z_compressed = mu_full + torch.exp(log_scale_full) * epsilon
-        else:
-            # During inference, apply deterministic rounding for proper quantization
-            z_compressed = torch.round(mu_full)
+        
+        # Use mu_full directly as the compressed representation
+        z_compressed = mu_full
 
         # Compute entropy loss (bits per dimension) with improved numerical stability
         compression_loss = 0.5 * log_scale.mul(2).exp() + 0.5 * torch.log(

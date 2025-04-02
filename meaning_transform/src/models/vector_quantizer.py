@@ -65,8 +65,9 @@ class VectorQuantizer(CompressionBase):
         input_shape = z.shape
         flat_z = z.reshape(-1, self.latent_dim)
 
-        # Calculate distances using cdist for better efficiency
-        distances = torch.cdist(flat_z, self.embedding.weight, p=2).pow(2)
+        # Calculate distances using cdist with p=2 for squared Euclidean distance
+        # Note: cdist with p=2 already gives us the squared distances, no need for .pow(2)
+        distances = torch.cdist(flat_z, self.embedding.weight, p=2)
 
         # Get the indices of the closest embedding vectors
         encoding_indices = torch.argmin(distances, dim=1)
@@ -74,18 +75,20 @@ class VectorQuantizer(CompressionBase):
         # Compute the perplexity (measure of codebook usage)
         encodings = F.one_hot(encoding_indices, self.num_embeddings).float()
         avg_probs = torch.mean(encodings, dim=0)
-
-        # Add mask to handle unused codebook entries with improved numerical stability
-        mask = avg_probs > 0
-        if torch.any(mask):
-            # Calculate perplexity only for used codebook entries with numerical stability
-            masked_probs = avg_probs[mask]
-
-            # Clamp probabilities for numerical stability
-            log_probs = torch.log(torch.clamp(masked_probs, min=1e-10))
-            perplexity = torch.exp(-torch.sum(masked_probs * log_probs))
-        else:
-            # If no codebook entries are used (unlikely but possible)
+        
+        # Calculate perplexity with improved numerical stability
+        eps = 1e-10  # Small epsilon to avoid log(0)
+        
+        # Handle non-zero probabilities 
+        avg_probs_filtered = avg_probs + eps
+        avg_probs_normalized = avg_probs_filtered / torch.sum(avg_probs_filtered)
+        
+        # Calculate entropy using a more stable approach
+        entropy = -torch.sum(avg_probs * torch.log2(avg_probs_normalized + eps))
+        perplexity = torch.exp(torch.tensor(entropy, device=z.device))
+        
+        # If perplexity is NaN or infinite, set to a reasonable default
+        if torch.isnan(perplexity) or torch.isinf(perplexity):
             perplexity = torch.tensor(1.0, device=z.device)
 
         # Straight-through estimator

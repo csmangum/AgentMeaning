@@ -23,7 +23,7 @@
 ## **2. Theoretical Framing**
 
 ### Core Concepts:
-- **Meaning as Invariance Through Transformation**  
+- **Meaning as invariance through transformation**  
   The idea that what constitutes "meaning" is precisely what remains constant when information undergoes various transformations. If the essential properties persist across different forms of representation, those properties constitute meaning. [Read more](docs/concepts/meaning_as_invariance.md)
   
 - **Latent space as structured essence**  

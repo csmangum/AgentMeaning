@@ -7,13 +7,17 @@ from torch_geometric.data import Batch, Data
 
 from meaning_transform.src.graph_model import VGAE, GraphDecoder, GraphEncoder
 from meaning_transform.src.knowledge_graph import AgentStateToGraph
+from meaning_transform.src.models.adaptive_entropy_bottleneck import (
+    AdaptiveEntropyBottleneck,
+)
 from meaning_transform.src.models.decoder import Decoder
 from meaning_transform.src.models.encoder import Encoder
 from meaning_transform.src.models.entropy_bottleneck import EntropyBottleneck
+from meaning_transform.src.models.utils import BaseModelIO, set_temp_seed
 from meaning_transform.src.models.vector_quantizer import VectorQuantizer
 
 
-class MeaningVAE(nn.Module):
+class MeaningVAE(nn.Module, BaseModelIO):
     """VAE model for meaning-preserving transformations."""
 
     def __init__(
@@ -28,6 +32,7 @@ class MeaningVAE(nn.Module):
         graph_hidden_dim: int = 128,
         gnn_type: str = "GCN",
         graph_num_layers: int = 3,
+        seed: int = None,
     ):
         """
         Initialize MeaningVAE model.
@@ -35,7 +40,7 @@ class MeaningVAE(nn.Module):
         Args:
             input_dim: Dimension of input agent state
             latent_dim: Dimension of latent space
-            compression_type: Type of compression ('entropy' or 'vq')
+            compression_type: Type of compression ('entropy', 'adaptive_entropy', or 'vq')
             compression_level: Level of compression
             vq_num_embeddings: Number of embeddings for vector quantization
             use_batch_norm: Whether to use batch normalization
@@ -43,6 +48,7 @@ class MeaningVAE(nn.Module):
             graph_hidden_dim: Hidden dimension for graph neural networks
             gnn_type: Type of graph neural network ('GCN', 'GAT', 'SAGE', 'GIN')
             graph_num_layers: Number of layers in graph neural networks
+            seed: Random seed for reproducibility
         """
         super().__init__()
 
@@ -52,6 +58,7 @@ class MeaningVAE(nn.Module):
         self.compression_level = compression_level
         self.use_batch_norm = use_batch_norm
         self.use_graph = use_graph
+        self.seed = seed
 
         # Standard vector encoder/decoder for non-graph inputs
         self.encoder = Encoder(
@@ -113,11 +120,15 @@ class MeaningVAE(nn.Module):
         # Set up compression module based on compression_type
         if compression_type == "entropy":
             self.compression = EntropyBottleneck(
-                latent_dim=latent_dim, compression_level=compression_level
+                latent_dim=latent_dim, compression_level=compression_level, seed=seed
+            )
+        elif compression_type == "adaptive_entropy":
+            self.compression = AdaptiveEntropyBottleneck(
+                latent_dim=latent_dim, compression_level=compression_level, seed=seed
             )
         elif compression_type == "vq":
             self.compression = VectorQuantizer(
-                latent_dim=latent_dim, num_embeddings=vq_num_embeddings
+                latent_dim=latent_dim, num_embeddings=vq_num_embeddings, seed=seed
             )
         else:
             self.compression = None
@@ -134,9 +145,15 @@ class MeaningVAE(nn.Module):
             z: Sampled latent vector
         """
         std = torch.exp(0.5 * log_var)
-        eps = torch.randn_like(std)
-        z = mu + eps * std
-        return z
+
+        if self.training:
+            with set_temp_seed(self.seed):
+                eps = torch.randn_like(std)
+            z = mu + eps * std
+            return z
+        else:
+            # During evaluation, just use the mean for deterministic results
+            return mu
 
     def forward(self, x: Union[torch.Tensor, Data, Batch]) -> Dict[str, Any]:
         """
@@ -157,6 +174,17 @@ class MeaningVAE(nn.Module):
                 - quantization_loss: Loss from vector quantization (if applicable)
                 - perplexity: Perplexity of codebook usage (if applicable)
         """
+        # Validate input
+        if not isinstance(x, (torch.Tensor, Data, Batch)):
+            raise TypeError(f"Expected torch.Tensor, Data, or Batch, got {type(x)}")
+
+        if isinstance(x, torch.Tensor) and (
+            x.dim() != 2 or x.size(1) != self.input_dim
+        ):
+            raise ValueError(
+                f"Expected tensor shape (batch_size, {self.input_dim}), got {x.shape}"
+            )
+
         results = {}
 
         # Handle graph data
@@ -182,7 +210,7 @@ class MeaningVAE(nn.Module):
 
             # Apply compression if enabled
             if self.compression is not None:
-                if self.compression_type == "entropy":
+                if self.compression_type in ["entropy", "adaptive_entropy"]:
                     z_compressed, compression_loss = self.compression(results["z"])
                     results["z_compressed"] = z_compressed
                     results["compression_loss"] = compression_loss
@@ -209,7 +237,7 @@ class MeaningVAE(nn.Module):
 
         # Apply compression if enabled
         if self.compression is not None:
-            if self.compression_type == "entropy":
+            if self.compression_type in ["entropy", "adaptive_entropy"]:
                 z_compressed, compression_loss = self.compression(z)
                 results["z_compressed"] = z_compressed
                 results["compression_loss"] = compression_loss
@@ -241,68 +269,84 @@ class MeaningVAE(nn.Module):
         Returns:
             z: Latent representation
         """
+        # Validate input
+        if not isinstance(x, (torch.Tensor, Data, Batch)):
+            raise TypeError(f"Expected torch.Tensor, Data, or Batch, got {type(x)}")
+
+        if isinstance(x, torch.Tensor) and (
+            x.dim() != 2 or x.size(1) != self.input_dim
+        ):
+            raise ValueError(
+                f"Expected tensor shape (batch_size, {self.input_dim}), got {x.shape}"
+            )
+
         # Handle graph data
         if self.use_graph and isinstance(x, (Data, Batch)):
-            # Use graph encoder
-            return self.graph_vae.encode_to_latent(x)
+            graph_z = self.graph_vae.encode(x)
+            if self.compression is not None:
+                if self.compression_type in ["entropy", "adaptive_entropy"]:
+                    compressed_z, _ = self.compression(graph_z)
+                    return compressed_z
+                elif self.compression_type == "vq":
+                    quantized_z, _, _ = self.compression(graph_z)
+                    return quantized_z
+            return graph_z
 
-        # Standard encoding for tensor input
+        # Handle tensor data
         mu, log_var = self.encoder(x)
         z = self.reparameterize(mu, log_var)
 
         # Apply compression if enabled
         if self.compression is not None:
-            if self.compression_type == "entropy":
-                z, _ = self.compression(z)
+            if self.compression_type in ["entropy", "adaptive_entropy"]:
+                compressed_z, _ = self.compression(z)
+                return compressed_z
             elif self.compression_type == "vq":
-                z, _, _ = self.compression(z)
+                quantized_z, _, _ = self.compression(z)
+                return quantized_z
 
         return z
 
-    def decode(
-        self, z: torch.Tensor, is_graph: bool = False
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
+    def decode(self, z: torch.Tensor) -> torch.Tensor:
         """
-        Decode latent representation to agent state or graph components.
+        Decode latent representation to output.
 
         Args:
             z: Latent representation
-            is_graph: Whether to decode as graph components
 
         Returns:
-            Decoded representation (tensor for standard, tuple for graph)
+            reconstruction: Reconstructed output
         """
-        if is_graph and self.use_graph:
-            # Use graph decoder
-            return self.graph_decoder(z)
+        # Validate input
+        if not isinstance(z, torch.Tensor):
+            raise TypeError(f"Expected torch.Tensor, got {type(z)}")
 
-        # Standard decoding for non-graph
+        if z.dim() != 2 or z.size(1) != self.latent_dim:
+            raise ValueError(
+                f"Expected shape (batch_size, {self.latent_dim}), got {z.shape}"
+            )
+
         return self.decoder(z)
 
-    def save(self, filepath: str) -> None:
-        """Save model to file."""
-        torch.save(self.state_dict(), filepath)
-
-    def load(self, filepath: str) -> None:
-        """Load model from file."""
-        self.load_state_dict(torch.load(filepath))
-
     def get_compression_rate(self) -> float:
-        """
-        Calculate and return the effective compression rate.
-
-        Returns:
-            compression_rate: Effective bits per dimension
-        """
-        if self.compression_type == "entropy":
-            # Estimate bits per dimension from the entropy bottleneck
-            return torch.exp(self.compression.compress_log_scale).mean().item()
-        elif self.compression_type == "vq":
-            # Estimate bits per dimension for VQ as log2(codebook size) / dimension
-            return np.log2(self.compression.num_embeddings) / self.latent_dim
-        else:
-            # No compression
+        """Get the effective compression rate."""
+        if self.compression is None:
             return 1.0
+
+        return self.compression.get_compression_rate()
+
+    def get_config(self) -> Dict[str, Any]:
+        """Return model configuration as a dictionary."""
+        config = super().get_config()
+        # Add MeaningVAE specific configuration
+        config.update(
+            {
+                "vq_num_embeddings": getattr(self, "vq_num_embeddings", 512),
+                "use_batch_norm": self.use_batch_norm,
+                "use_graph": self.use_graph,
+            }
+        )
+        return config
 
     def convert_agent_to_graph(self, agent_state):
         """

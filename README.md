@@ -104,3 +104,10 @@ Each stage is invertible (lossless or learned), and the focus is on preserving *
 - Reconstruction deltas at various compression levels
 
 > For detailed definitions of our standardized metrics framework, evaluation methods, and validation approach, see [StandardizedMetrics.md](docs/StandardizedMetrics.md) and [Validation.md](docs/Validation.md).
+
+---
+
+## **5. Implementation Details**
+
+- [AgentMemory Perspective](docs/agent_memory_perspective.md)
+- [Reconstruction Process](docs/reconstruction_process.md)

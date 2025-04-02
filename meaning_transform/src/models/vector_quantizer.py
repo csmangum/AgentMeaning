@@ -71,14 +71,6 @@ class VectorQuantizer(CompressionBase):
         # Get the indices of the closest embedding vectors
         encoding_indices = torch.argmin(distances, dim=1)
 
-        # Quantize the latent vectors
-        quantized = self.embedding(encoding_indices).reshape(input_shape)
-
-        # Compute the VQ loss
-        q_latent_loss = F.mse_loss(quantized.detach(), z)
-        commitment_loss = F.mse_loss(quantized, z.detach())
-        vq_loss = q_latent_loss + self.commitment_cost * commitment_loss
-
         # Compute the perplexity (measure of codebook usage)
         encodings = F.one_hot(encoding_indices, self.num_embeddings).float()
         avg_probs = torch.mean(encodings, dim=0)
@@ -98,7 +90,13 @@ class VectorQuantizer(CompressionBase):
 
         # Straight-through estimator
         # Pass the gradient from quantized to input z
+        quantized = self.embedding(encoding_indices).reshape(input_shape)
         quantized = z + (quantized - z).detach()
+
+        # Compute the VQ loss
+        q_latent_loss = F.mse_loss(quantized.detach(), z)
+        commitment_loss = F.mse_loss(quantized, z.detach())
+        vq_loss = q_latent_loss + self.commitment_cost * commitment_loss
 
         return quantized, vq_loss, perplexity
 

@@ -1,8 +1,8 @@
 # **System Design Overview**
 
-Our system is built not as a linear data pipeline, but as a **closed-loop transformation mechanism**—a living compression ecology where structured agent states can be encoded, abstracted, compressed, and then regenerated—all while preserving their functional and semantic integrity.
+Our system is built not as a linear data pipeline, but as a **closed-loop transformation mechanism**—a comprehensive compression ecology where structured agent states can be encoded, abstracted, compressed, and then regenerated—all while preserving their functional and semantic integrity.
 
-Each layer of this system plays the role of an **algorithmic organ**: a specialized component that transforms the representation of the agent state, passing it along to the next, until the full cycle completes. Together, these transformations form a **representational arc**—from symbolic form to geometric abstraction, to minimal essence, and back to symbol again.
+Each component of this system functions as a **specialized module**: a dedicated element that transforms the representation of the agent state, passing it along to the next, until the full cycle completes. Together, these transformations form a **representational arc**—from symbolic form to geometric abstraction, to minimal essence, and back to symbol again.
 
 ---
 
@@ -30,13 +30,13 @@ Each transformation is invertible either exactly (serialization) or approximatel
 
 ---
 
-### **3.2 Components (Organs)**
+### **3.2 System Components**
 
-Each module in the pipeline corresponds to a distinct transformation function and metaphorical organ.
+Each module in the pipeline corresponds to a distinct transformation function.
 
 ---
 
-#### **3.2.1 Serializer / Deserializer (Skin)**
+#### **3.2.1 Serializer / Deserializer**
 
 - **Function:** Converts the structured agent state (Python dict) into a flat, fixed-size vector of bits or bytes.
 - **Reversibility:** Fully deterministic.
@@ -44,11 +44,9 @@ Each module in the pipeline corresponds to a distinct transformation function an
   - Custom flattening or message encoding (e.g., JSON → UTF-8 → byte vector)  
   - Optionally, structuring into binary tensors
 
-- **Metaphor:** The **skin** defines the boundary of the agent—it exposes it to the external system and lets the inner state be translated into machine-readable form.
-
 ---
 
-#### **3.2.2 Encoder / Decoder (Lungs + Muscles)**
+#### **3.2.2 Encoder / Decoder**
 
 - **Function:** Maps binary data to a learned latent space, and vice versa.
 - **Implementation:** A **Variational Autoencoder** (VAE) trained to reconstruct the binary vector from a lower-dimensional latent representation.
@@ -56,13 +54,9 @@ Each module in the pipeline corresponds to a distinct transformation function an
 - **Latent Space Dimensionality:** Tunable; represents a bottleneck where only essential structure is retained.
 - **Losses:** Reconstruction loss (MSE or binary cross-entropy), KL divergence.
 
-- **Metaphors:**
-  - **Lungs (Encoder):** Compresses form into inner potential.
-  - **Muscles (Decoder):** Reconstructs form from stored tension and shape.
-
 ---
 
-#### **3.2.3 Latent Space (Cognitive Core)**
+#### **3.2.3 Latent Space**
 
 - **Function:** The internal representation where **abstract structure and relationships** are encoded.
 - **Properties:**
@@ -73,11 +67,9 @@ Each module in the pipeline corresponds to a distinct transformation function an
   - Use t-SNE or PCA to visualize latent geometry.
   - Study clustering of functionally similar states.
 
-- **Metaphor:** The **brain** or **cognitive core**—the place where information is held, not as explicit facts, but as *relations* and *potential*.
-
 ---
 
-#### **3.2.4 Compression / Decompression (Liver)**
+#### **3.2.4 Compression / Decompression**
 
 - **Function:** Reduces the latent representation to a minimal form, by applying quantization or entropy-based compression.
 - **Implementation Options:**
@@ -85,11 +77,9 @@ Each module in the pipeline corresponds to a distinct transformation function an
   - **VQ-VAE:** Vector-quantized latent codes.
   - **Manual Quantization:** Simple fixed-size discretization of latent vectors.
 
-- **Metaphor:** The **liver** filters and distills the contents of the latent space, reducing redundancy and extracting what is essential.
-
 ---
 
-#### **3.2.5 Loss Function (Nervous System)**
+#### **3.2.5 Loss Function**
 
 - **Function:** Guides learning by signaling error between original and reconstructed forms.
 - **Components:**
@@ -97,15 +87,13 @@ Each module in the pipeline corresponds to a distinct transformation function an
   - **KL Divergence / Entropy Loss:** Forces compression pressure on latent.
   - **Semantic Loss:** Compares key features (position, health, energy, role, etc.) between original and reconstructed states.
 
-- **Metaphor:** The **nervous system**—detecting pain, signaling misalignment, guiding correction.
-
 ---
 
 ### **3.3 Feedback Loop**
 
 The system is trained end-to-end using the total loss signal, allowing all parts—from serialization to compression—to align their representations in service of **semantic preservation**.
 
-This architecture is not static. It is a **learning organism**, adjusting each organ's function so that information can move through any form without losing its soul.
+This architecture is not static. It is a **learning system**, adjusting each component's function so that information can move through any form without losing its essential meaning.
 
 ---
 

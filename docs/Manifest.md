@@ -1,6 +1,3 @@
-
-### **The Meaning Manifest**  
-
 We do not compress to save space.  
 We compress to preserve *essence*.
 
@@ -12,7 +9,7 @@ Like a book on a shelf. Like a painting in the dark.
 Its value is not proven by immediate application,  
 but by its capacity to **withstand time**, transformation, and attention.
 
-**Meaning is not given. Meaning is evoked.**  
+**Meaning is not given. Meaning is realized.**  
 It lives not in the data, but in the relationship between data and observer.  
 So we preserve not facts, but *the conditions for insight*.
 
@@ -36,38 +33,46 @@ but because they can.
 
 ---
 
-Technical Interpretation
+## Technical Interpretation
 
-The system operates as a structured transformation pipeline applied to real-time agent state data. It consists of multiple layers:
+The system operates as a multi-modal transformation network applied to real-time agent state data. It consists of parallel specialized pathways:
 
-1. Structured State Encoding: Real agent state data (e.g., position, health, memory) is encoded into a format that captures the semantics of simulation dynamics.
+1. Multi-Pathway Compression Architecture: Real agent state data is processed through four parallel specialized pathways:
+   - Neural-Perceptual Pathway: VAE optimized for statistical feature patterns and distributions
+   - Relational Pathway: Graph-based encoder preserving relationships and network structures
+   - Functional Pathway: Information bottleneck model preserving behavior-relevant information
+   - Symbolic Pathway: Discrete encoder maintaining rules and logical structures
 
+2. Attention-Based Fusion: Representations from each pathway are dynamically combined through a context-aware attention mechanism that weights pathways differently based on the specific requirements of the reconstruction task.
 
-2. Binary & Symbolic Representation: States are converted to binary or symbolic forms, introducing constraints and enabling explicit inspection of representational fidelity.
+3. Semantic Reconstruction: The fused representation is decoded to regenerate the agent state, with the goal of preserving multiple aspects of meaning simultaneously.
 
+A key design principle is that different types of meaning require different compression approaches. Rather than a one-size-fits-all pipeline, this system:
 
-3. Latent Compression (VAE/Transformer): Data is passed through a variational autoencoder or transformer model that learns a compact latent space intended to preserve structure and meaning.
+- Preserves statistical patterns through the Neural-Perceptual pathway
+- Maintains relational structures through the Graph-based pathway
+- Retains functional/behavioral equivalence through the Information Bottleneck
+- Preserves symbolic knowledge through the Discrete encoder
 
+Evaluation involves:
+- Pathway-specific metrics measuring preservation of different meaning aspects
+- Fusion quality assessment through composite semantic metrics
+- Task-specific performance across varied reconstruction requirements
+- Semantic drift tracking as compression levels change
 
-4. Reconstruction & Interpretation: Decoders regenerate state from the latent space. These reconstructions are tested for structural coherence, interpretability, and functional utility.
+Unlike traditional compression pipelines that focus on a single dimension of fidelity, this system is designed as a comprehensive semantic preservation framework—capable of maintaining multiple aspects of meaning simultaneously through specialized pathways and intelligent fusion.
 
+This multi-pathway approach directly aligns with Vervaeke's 4P model of knowing:
+- The Symbolic Pathway preserves Propositional knowing (knowledge that something is the case)
+- The Functional Pathway preserves Procedural knowing (knowledge of how to do things)
+- The Neural-Perceptual Pathway preserves Perspectival knowing (knowledge from a certain viewpoint)
+- The Relational Pathway preserves Participatory knowing (knowledge gained through relationships)
 
-
-A key design principle is that each transformation layer must retain semantic coherence, not just numerical fidelity. Evaluation involves:
-
-Measuring cluster integrity and inter-agent relationships.
-
-Assessing downstream behavioral generalization from latent forms.
-
-Conducting human-in-the-loop interpretation experiments.
-
-
-Unlike traditional compression pipelines that focus on entropy reduction, this system is designed to act as a semantic conduit—a medium through which meaning can persist, even when representation changes.
-
+By addressing all four types of knowing simultaneously, our system avoids the reductionism common in traditional AI approaches that often privilege propositional knowledge while neglecting other equally important dimensions of meaning.
 
 ---
 
-References and Philosophical Foundations
+## References and Philosophical Foundations
 
 John Vervaeke – Relevance Realization: the dynamic process through which intelligence filters, prioritizes, and maintains context-sensitive relevance — a foundation for any system concerned with preserving meaning across change.
 
@@ -79,18 +84,6 @@ Gregory Bateson – Steps to an Ecology of Mind: information is "a difference th
 
 Claude Shannon – A Mathematical Theory of Communication: we begin with signal, noise, and channel — but we go beyond. We seek not only fidelity of transmission, but fidelity of understanding.
 
-Humberto Maturana & Francisco Varela – Autopoiesis and Cognition: cognition as a process of self-construction through interaction. Our system doesn’t just transform data — it reflects a living ecology of meaning under transformation.
+Humberto Maturana & Francisco Varela – Autopoiesis and Cognition: cognition as a process of self-construction through interaction. Our system doesn't just transform data — it reflects a living ecology of meaning under transformation.
 
 Stephen Wolfram – A New Kind of Science and The Wolfram Physics Project: complex systems can exhibit computational irreducibility, where understanding emerges only through unfolding. Meaning in such systems is not pre-computable, but embedded in the trajectory. Our system respects this by preserving the paths and potentials within evolving agent state representations.
-
-
----
-
-This manifesto is not an endpoint. It is a foundation for a new class of systems: not designed merely to act, but designed to carry forward the affordance of understanding.
-
-We do not build tools. We build languages.
-We do not transmit data. We preserve worlds.
-
-Not because they must —
-But because they can.
-

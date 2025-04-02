@@ -25,6 +25,7 @@ class FeatureGroupedVAE(nn.Module, BaseModelIO):
         feature_groups: Optional[Dict[str, Tuple[int, int, float]]] = None,
         base_compression_level: float = 1.0,
         use_batch_norm: bool = True,
+        min_group_dim: int = 1,
         seed: Optional[int] = None,
     ):
         """
@@ -37,6 +38,7 @@ class FeatureGroupedVAE(nn.Module, BaseModelIO):
                             If None, equal groups with equal compression will be used
             base_compression_level: Base compression level to apply to all groups
             use_batch_norm: Whether to use batch normalization
+            min_group_dim: Minimum dimension allowed for any feature group
             seed: Random seed for reproducibility
         """
         super().__init__()
@@ -46,6 +48,7 @@ class FeatureGroupedVAE(nn.Module, BaseModelIO):
         self.base_compression_level = base_compression_level
         self.seed = seed
         self.use_batch_norm = use_batch_norm
+        self.min_group_dim = max(1, min_group_dim)  # Ensure minimum is at least 1
 
         # Set random seed if provided
         if seed is not None:
@@ -82,7 +85,7 @@ class FeatureGroupedVAE(nn.Module, BaseModelIO):
         for name, (start_idx, end_idx, compression) in feature_groups.items():
             feature_count = end_idx - start_idx
             intended_dims[name] = max(
-                1, int(latent_dim * feature_count / total_features)
+                self.min_group_dim, int(latent_dim * feature_count / total_features)
             )
 
         # Adjust to ensure total matches latent_dim exactly
@@ -106,17 +109,46 @@ class FeatureGroupedVAE(nn.Module, BaseModelIO):
                 # Take dimensions from less important groups first (reverse order)
                 # Sort by descending importance (higher compression = lower importance)
                 sorted_groups.reverse()
-                for i in range(abs(remaining)):
-                    group_name = sorted_groups[i % len(sorted_groups)][0]
-                    # Ensure we don't reduce any group below 1 dimension
-                    if intended_dims[group_name] > 1:
-                        intended_dims[group_name] -= 1
-                    else:
-                        # If we can't take from this group, try the next one
-                        for j in range(len(sorted_groups)):
-                            next_group = sorted_groups[(i + j) % len(sorted_groups)][0]
-                            if intended_dims[next_group] > 1:
-                                intended_dims[next_group] -= 1
+                
+                # First check if there are any groups above minimum that can be reduced
+                reducible_groups = [
+                    name for name, dim in intended_dims.items() 
+                    if dim > self.min_group_dim
+                ]
+                
+                if not reducible_groups:
+                    logging.warning(
+                        f"Cannot reduce dimensions: all groups are at minimum {self.min_group_dim} dimensions. "
+                        f"Requesting {abs(remaining)} fewer dimensions than available."
+                    )
+                    # Adjust latent_dim to match what we can actually allocate
+                    self.latent_dim = sum(intended_dims.values())
+                    logging.info(f"Adjusted latent_dim to {self.latent_dim}")
+                else:
+                    # Proceed with dimension reduction
+                    for i in range(abs(remaining)):
+                        group_name = sorted_groups[i % len(sorted_groups)][0]
+                        # Ensure we don't reduce any group below minimum threshold
+                        if intended_dims[group_name] > self.min_group_dim:
+                            intended_dims[group_name] -= 1
+                        else:
+                            # If we can't take from this group, find any group above minimum
+                            found_reducible = False
+                            for next_group in sorted_groups:
+                                group_name = next_group[0]
+                                if intended_dims[group_name] > self.min_group_dim:
+                                    intended_dims[group_name] -= 1
+                                    found_reducible = True
+                                    break
+                                    
+                            if not found_reducible:
+                                logging.warning(
+                                    f"Cannot reduce more dimensions: all groups at minimum {self.min_group_dim}. "
+                                    f"Stopping after reducing {i} of {abs(remaining)} dimensions."
+                                )
+                                # Adjust latent_dim to match what we can actually allocate
+                                self.latent_dim = sum(intended_dims.values())
+                                logging.info(f"Adjusted latent_dim to {self.latent_dim}")
                                 break
 
         # Second pass: create bottlenecks with corrected dimensions

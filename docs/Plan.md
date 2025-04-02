@@ -3,7 +3,7 @@
 ---
 
 ### **1. Introduction**
-*[(Algorithms as Organs, Systems as Bodies)](Introduction.md)*
+*[(Algorithms as Transformative Components, Systems as Unified Mechanisms)](Introduction.md)*
 
 ---
 
@@ -17,11 +17,11 @@ This section grounds your work in the broader research ecosystem.
 - [Bengio et al.] on *Manifold Hypothesis* — high-dimensional data lies on lower-dimensional, meaningful manifolds.
 
 #### **2.2 Information Bottleneck Theory**
-- Tishby’s principle: Compress data while preserving relevant information.
+- Tishby's principle: Compress data while preserving relevant information.
 - Your work extends this from compression to **meaning preservation** across representation changes.
 
 #### **2.3 Neural Compression**
-- Google’s neural image compression work (Balle et al.)
+- Google's neural image compression work (Balle et al.)
 - VQ-VAEs: bridging discrete coding and learned representation.
 - Your approach draws on these but shifts the focus from visual fidelity to **semantic coherence**.
 
@@ -33,7 +33,7 @@ This section grounds your work in the broader research ecosystem.
 
 ### **3. System Design Overview**
 
-This is the **core architecture section**—explaining the organs of your system.
+This is the **core architecture section**—explaining the components of your system.
 
 #### **3.1 The Representational Pipeline**
 
@@ -54,7 +54,7 @@ Each transformation is reversible (some exactly, some approximately), and the fu
 
 ---
 
-#### **3.2 Components (Organs)**
+#### **3.2 System Components**
 
 - **Serializer / Deserializer:** Transforms structured agent states into a fixed binary vector and vice versa.
 - **Encoder / Decoder (VAE):** Learns latent representations that abstract but preserve agent-state meaning.
@@ -66,7 +66,7 @@ Each transformation is reversible (some exactly, some approximately), and the fu
 
 ### **4. Loss Functions & Learning Objectives**
 
-Here’s where you define what the system is *trying to do*.
+Here's where you define what the system is *trying to do*.
 
 #### **4.1 Reconstruction Loss**
 - Binary reconstruction loss or token-level loss to recreate the original serialized state.
@@ -116,9 +116,9 @@ Here’s where you define what the system is *trying to do*.
   - Example agent states and their reconstructions
 
 - Qualitative:
-  - “Here is what this agent state looked like.”
-  - “Here’s what it became in latent space.”
-  - “Here’s the reconstructed version—and how it still meant the same thing.”
+  - "Here is what this agent state looked like."
+  - "Here's what it became in latent space."
+  - "Here's the reconstructed version—and how it still meant the same thing."
 
 ---
 
@@ -127,7 +127,7 @@ Here’s where you define what the system is *trying to do*.
 - Reflect on what your system *learns*.
 - When is meaning preserved vs. lost?
 - What does the latent space seem to encode?
-- Is there “semantic gravity” in the latent space—some attractor states?
+- Is there "semantic gravity" in the latent space—some attractor states?
 
 ---
 
@@ -135,7 +135,7 @@ Here’s where you define what the system is *trying to do*.
 
 - Tie back to your metaphor: transformation as a spiritual or epistemic act.
 - The shift from understanding data to understanding *meaning*.
-- Echo: “This is not about compression. This is about transfiguration.”
+- Echo: "This is not about compression. This is about transfiguration."
 
 ---
 
@@ -151,4 +151,4 @@ Here’s where you define what the system is *trying to do*.
 
 - Summarize what was achieved.
 - Emphasize the ability to **transform information while retaining essence**.
-- This is not just machine learning. It’s a **study of continuity across change**.
+- This is not just machine learning. It's a **study of continuity across change**.

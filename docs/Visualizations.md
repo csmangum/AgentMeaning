@@ -2,16 +2,16 @@
 
 ## **1. System Overview Diagrams**
 
-### **1.1 The Algorithmic Body (Conceptual Diagram)**
-**Purpose:** Introduce your metaphor early—each component as an organ.
+### **1.1 System Architecture (Conceptual Diagram)**
+**Purpose:** Introduce the core components and their interactions.
 
-- A human-like figure or abstract loop:
-  - **Skin** → Serializer
-  - **Lungs** → Encoder
-  - **Brain** → Latent space
-  - **Liver** → Compression
-  - **Muscle** → Decoder
-  - **Nerve** → Loss function
+- An abstract diagram showing:
+  - **Serializer**
+  - **Encoder**
+  - **Latent space**
+  - **Compression module**
+  - **Decoder**
+  - **Loss function**
 
 **Tip:** Make this diagram artistic but informative—it sets the tone.
 
@@ -59,7 +59,7 @@ Reconstructed Agent State
 - Y-axis: Semantic deviation metric
   - e.g., behavior divergence, task reward drop, etc.
 
-This shows where compression crosses the “meaning threshold.”
+This shows where compression crosses the "meaning threshold."
 
 ---
 
@@ -85,14 +85,14 @@ This can visually prove the **clustering of meaning** in latent space.
 - Linearly interpolate their latent codes
 - Decode and visualize the resulting reconstructed states
 
-You’ll be able to demonstrate how the system generalizes *between* known states—i.e., whether it understands *semantic blending.*
+You'll be able to demonstrate how the system generalizes *between* known states—i.e., whether it understands *semantic blending.*
 
 ---
 
 ## **4. Qualitative Comparisons**
 
 ### **4.1 Original vs Reconstructed State Comparison**
-**Purpose:** Let readers *see* what’s preserved and what’s not.
+**Purpose:** Let readers *see* what's preserved and what's not.
 
 For each example:
 - Original agent state (key features)
@@ -134,7 +134,7 @@ This is especially good if you have agents that move in space or accumulate rewa
 
 | Visualization | Purpose |
 |---------------|---------|
-| Algorithmic Body | Introduce conceptual metaphor |
+| System Architecture | Introduce core components |
 | Pipeline Diagram | Show system architecture |
 | Compression vs Reconstruction | Show trade-offs |
 | Compression vs Semantic Loss | Visualize "break point" of meaning |

@@ -23,7 +23,7 @@
 
 ### Core Concepts:
 - **Meaning as Invariance Through Transformation**  
-  The idea that what constitutes "meaning" is precisely what remains constant when information undergoes various transformations. If the essential properties persist across different forms of representation, those properties constitute meaning.
+  The idea that what constitutes "meaning" is precisely what remains constant when information undergoes various transformations. If the essential properties persist across different forms of representation, those properties constitute meaning. [Read more](docs/concepts/meaning_as_invariance.md)
   
 - **Latent space as structured essence**  
   The compressed representation in latent space captures not just data patterns but the underlying semantic structure that gives rise to those patterns. This essence is what allows reconstruction of behaviorally equivalent states.
@@ -48,7 +48,7 @@
   
 - **Philosophy of Meaning / Semiotics**: Design evaluation metrics that test for preservation of relationships rather than exact structures. Create "meaning benchmarks" where models must demonstrate semantic equivalence in downstream tasks despite representational differences.
 
-We can ground this in works like:
+### Foundational Works:
 - **Ballé et al. (Entropy bottleneck)**: Their neural compression framework demonstrates how variational models can learn to prioritize information through a bottleneck, similar to how we want to preserve semantic meaning. We can adapt their end-to-end optimizable compression system to prioritize semantic rather than perceptual loss.
 
 - **VQ-VAEs (van den Oord et al.)**: Vector Quantized VAEs provide discrete latent representations that could help capture symbolic aspects of agent states. Their ability to represent complex distributions through codebook vectors aligns with our goal of finding compressed but meaningful representations.

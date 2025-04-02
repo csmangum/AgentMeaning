@@ -11,6 +11,7 @@
 > If we can measure semantic preservation even weakly, and show it emerges from compression-aware models, then we have evidence that meaning is not only representable but also resilient—emerging naturally from efficient encoding processes rather than needing to be explicitly defined.
 
 ### Key Questions:
+- How can we define, observe, and measure "meaning" in the context of agent states and their transformations?
 - How can we train a Variational Autoencoder (VAE) (or similar model) to understand a state well enough to *reconstruct its meaning* from a compressed representation?
 - What types of transformations occur between layers of representation?
 - How is **meaning preserved**, altered, or lost as data moves through different forms?

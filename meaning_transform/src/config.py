@@ -99,6 +99,7 @@ class MetricsConfig:
     semantic_similarity_type: str = "cosine"  # "cosine", "euclidean", or "manhattan"
     
     # Visualization
+    visualization_interval: int = 5
     use_tsne: bool = True
     tsne_perplexity: float = 30.0
     use_pca: bool = True

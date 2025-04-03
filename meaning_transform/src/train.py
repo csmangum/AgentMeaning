@@ -534,7 +534,12 @@ class Trainer:
             self.semantic_drift_history.append(drift_metrics)
             
             # Log to drift tracker
-            self.drift_tracker.log_metrics(drift_metrics)
+            self.drift_tracker.log_iteration(
+                iteration=len(self.semantic_drift_history),
+                compression_level=self.model.compression_level if hasattr(self.model, 'compression_level') else 1.0,
+                original=originals,
+                reconstructed=reconstructions
+            )
             
             return drift_metrics
         
@@ -604,7 +609,12 @@ class Trainer:
             self.semantic_drift_history.append(drift_metrics)
             
             # Log to drift tracker
-            self.drift_tracker.log_metrics(drift_metrics)
+            self.drift_tracker.log_iteration(
+                iteration=len(self.semantic_drift_history),
+                compression_level=self.model.compression_level if hasattr(self.model, 'compression_level') else 1.0,
+                original=original_tensors,
+                reconstructed=reconstructed_tensors
+            )
             
             return drift_metrics
             
@@ -922,7 +932,7 @@ class Trainer:
                 current_drift = self.semantic_drift_history[-1]
                 print(
                     f"  - Fidelity: {current_drift['fidelity']:.4f} - "
-                    f"Meaning Preservation: {current_drift['meaning_preservation']:.4f}"
+                    f"Meaning Preservation: {current_drift['preservation']:.4f}"
                 )
 
             # Save model

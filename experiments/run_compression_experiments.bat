@@ -13,12 +13,12 @@ REM Create results directory if it doesn't exist
 if not exist "results\compression_experiments" mkdir "results\compression_experiments"
 
 REM Run compression experiments with appropriate parameters
-%PYTHON% meaning_transform/run_compression_experiments.py ^
+%PYTHON% run_compression_experiments.py ^
     --output-dir "results/compression_experiments" ^
     --epochs 30 ^
     --batch-size 64 ^
     --num-states 5000 ^
-    --db-path "simulation.db" ^
+    --db-path "../data/simulation.db" ^
     --latent-dim 32 ^
     --gpu
 

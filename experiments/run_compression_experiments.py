@@ -193,7 +193,7 @@ class CompressionExperiment:
         db_path = (
             self.base_config.data.db_path
             if hasattr(self.base_config.data, "db_path")
-            else "simulation.db"
+            else "data/simulation.db"
         )
         if not os.path.exists(db_path):
             raise FileNotFoundError(
@@ -673,7 +673,7 @@ def parse_args():
     parser.add_argument(
         "--db-path",
         type=str,
-        default="simulation.db",
+        default="data/simulation.db",
         help="Path to the simulation database file",
     )
     parser.add_argument("--gpu", action="store_true", help="Use GPU for training")

@@ -15,6 +15,73 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Dict, Any, List, Tuple, Optional
+import math
+
+
+def beta_annealing(epoch: int, max_epochs: int, min_beta: float = 0.0, 
+                  max_beta: float = 1.0, schedule_type: str = "linear") -> float:
+    """
+    Calculate annealed beta value for KL divergence weight.
+    
+    This implements different annealing schedules for the KL weight (beta)
+    to stabilize training and prevent posterior collapse.
+    
+    Args:
+        epoch: Current training epoch
+        max_epochs: Maximum number of epochs
+        min_beta: Minimum beta value (starting value)
+        max_beta: Maximum beta value (ending value)
+        schedule_type: Type of annealing schedule. Options:
+                      "linear" - linear increase from min_beta to max_beta
+                      "sigmoid" - sigmoid-shaped curve for smooth transition
+                      "cyclical" - cyclical annealing (repeating pattern)
+                      "exponential" - exponential increase
+    
+    Returns:
+        beta: Annealed beta value for current epoch
+    """
+    # Normalize epoch to [0, 1]
+    t = epoch / max_epochs
+    
+    if schedule_type == "linear":
+        # Linear annealing
+        beta = min_beta + (max_beta - min_beta) * t
+    
+    elif schedule_type == "sigmoid":
+        # Sigmoid annealing for smooth transition
+        # Adjusted to ensure we reach close to min_beta and max_beta at endpoints
+        steepness = 10  # Controls sigmoid steepness
+        shift = 0.5     # Center of sigmoid
+        sigmoid_val = 1.0 / (1.0 + math.exp(-steepness * (t - shift)))
+        beta = min_beta + (max_beta - min_beta) * sigmoid_val
+    
+    elif schedule_type == "cyclical":
+        # Cyclical annealing (as in "Cyclical Annealing Schedule: A Simple Approach to Mitigating KL Vanishing")
+        # Number of cycles
+        n_cycles = 4
+        # Calculate position within cycle
+        cycle_ratio = n_cycles * t
+        cycle_t = cycle_ratio - math.floor(cycle_ratio)
+        
+        # Annealing within each cycle
+        if cycle_t < 0.5:
+            # Linear annealing for first half of cycle
+            beta_cycle = min_beta + (max_beta - min_beta) * (cycle_t * 2)
+        else:
+            # Hold at max_beta for second half of cycle
+            beta_cycle = max_beta
+            
+        beta = beta_cycle
+    
+    elif schedule_type == "exponential":
+        # Exponential annealing
+        exponent = 3  # Controls curve steepness
+        beta = min_beta + (max_beta - min_beta) * (t ** exponent)
+    
+    else:
+        raise ValueError(f"Unknown schedule type: {schedule_type}")
+    
+    return beta
 
 
 class ReconstructionLoss(nn.Module):

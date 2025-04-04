@@ -41,50 +41,42 @@ from meaning_transform.src.train import Trainer
 
 
 class CompressionExperiment:
-    """Class to run and analyze compression experiments."""
+    """Experiment runner for compression studies."""
 
-    def __init__(
-        self,
-        base_config: Config = None,
-        output_dir: str = None,
-    ):
+    def __init__(self, base_config: Config, output_dir: str = "results/compression_experiments"):
         """
         Initialize compression experiment.
 
         Args:
-            base_config: Base configuration to use (will be modified for each experiment)
-            output_dir: Directory to save experiment results
+            base_config: Base configuration for all experiments
+            output_dir: Directory to store results
         """
-        self.base_config = base_config or Config()
+        self.base_config = base_config
+        self.compression_levels = [0.1, 0.25, 0.5, 0.75, 1.0, 2.0, 4.0]
+        
+        # Initialize drift tracking states
+        self.drift_tracking_states = []
 
-        # Create timestamp for experiment
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.experiment_name = f"compression_experiments_{timestamp}"
-
-        # Create output directory
-        self.output_dir = Path(output_dir or "results/compression_experiments")
-        self.experiment_dir = self.output_dir / self.experiment_name
-        self.experiment_dir.mkdir(parents=True, exist_ok=True)
-
-        # Create subdirectories
-        self.models_dir = self.experiment_dir / "models"
-        self.visualizations_dir = self.experiment_dir / "visualizations"
-        self.metrics_dir = self.experiment_dir / "metrics"
-
-        self.models_dir.mkdir(exist_ok=True)
-        self.visualizations_dir.mkdir(exist_ok=True)
-        self.metrics_dir.mkdir(exist_ok=True)
-
-        # Set compression levels to test
-        self.compression_levels = [0.5, 1.0, 2.0, 5.0]
-
-        # Track results
+        # Create results storage
         self.results = {}
 
-        # Save base configuration
-        self._save_base_config()
+        # Create output directories
+        self.experiment_dir = Path(output_dir) / f"{base_config.experiment_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.experiment_dir.mkdir(parents=True, exist_ok=True)
 
-    def _save_base_config(self):
+        self.models_dir = self.experiment_dir / "models"
+        self.models_dir.mkdir(exist_ok=True)
+
+        self.metrics_dir = self.experiment_dir / "metrics"
+        self.metrics_dir.mkdir(exist_ok=True)
+
+        self.visualizations_dir = self.experiment_dir / "visualizations"
+        self.visualizations_dir.mkdir(exist_ok=True)
+
+        # Save the base configuration
+        self.save_base_config()
+
+    def save_base_config(self):
         """Save the base configuration to a file."""
         config_dict = {
             "model": {
@@ -136,6 +128,9 @@ class CompressionExperiment:
 
         # Prepare a common dataset for all experiments
         dataset = self._prepare_data()
+        
+        # Store drift tracking states at the experiment level for evaluation
+        self.drift_tracking_states = dataset["drift_tracking"]
 
         # Run an experiment for each compression level
         for level in self.compression_levels:
@@ -152,7 +147,7 @@ class CompressionExperiment:
             # Set the pre-prepared dataset to the trainer
             trainer.train_dataset = dataset["train"]
             trainer.val_dataset = dataset["val"]
-            trainer.drift_tracking_states = dataset["drift_tracking"]
+            trainer.drift_tracking_states = self.drift_tracking_states
 
             # Train the model
             training_results = trainer.train()
@@ -343,6 +338,9 @@ class CompressionExperiment:
         """
         # Create standardized metrics instance
         metrics = StandardizedMetrics()
+        
+        # Get device from model parameters
+        device = next(model.parameters()).device
 
         # Apply model to drift tracking states
         original_tensors = []
@@ -354,11 +352,14 @@ class CompressionExperiment:
             x = state.to_tensor().unsqueeze(0)
             
             # Move to device
-            x = x.to(model.device)
+            x = x.to(device)
             
             # Run through model
             with torch.no_grad():
-                recon_x, _, _ = model(x)
+                # Model returns a dictionary with reconstructed data
+                model_output = model(x)
+                # Get the reconstruction from the output
+                recon_x = model_output["reconstruction"]
             
             # Add to lists for batch evaluation
             original_tensors.append(x)

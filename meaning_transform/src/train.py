@@ -241,8 +241,12 @@ class Trainer:
             print(f"Training set: {len(self.train_dataset.states)} states")
             print(f"Validation set: {len(self.val_dataset.states)} states")
 
-        # Set aside a small set of states for tracking semantic drift
-        self.drift_tracking_states = val_states[: min(10, len(val_states))]
+        # Set aside a set of states for tracking semantic drift
+        drift_tracking_size = min(20, len(val_states))  # Use up to 20 states for better t-SNE
+        self.drift_tracking_states = val_states[:drift_tracking_size]
+        
+        if self.config.debug:
+            print(f"Using {len(self.drift_tracking_states)} states for drift tracking")
 
         # If using graph-based representation, prepare graph versions as well
         if self.use_graph:
@@ -737,17 +741,29 @@ class Trainer:
         plt.ylabel("Loss")
         plt.legend()
 
-        # Plot semantic loss
+        # Plot semantic loss if available
         plt.subplot(2, 2, 4)
-        plt.plot(
-            epochs, [m["train_semantic_loss"] for m in self.train_losses], label="Train"
-        )
-        plt.plot(
-            epochs,
-            [m["val_semantic_loss"] for m in self.val_losses],
-            label="Validation",
-        )
-        plt.title("Semantic Loss")
+        if "train_semantic_loss" in self.train_losses[0]:
+            plt.plot(
+                epochs, [m["train_semantic_loss"] for m in self.train_losses], label="Train"
+            )
+            plt.plot(
+                epochs,
+                [m["val_semantic_loss"] for m in self.val_losses],
+                label="Validation",
+            )
+            plt.title("Semantic Loss")
+        else:
+            # Plot compression loss if semantic loss is not available
+            plt.plot(
+                epochs, [m.get("train_compression_loss", 0) for m in self.train_losses], label="Train"
+            )
+            plt.plot(
+                epochs,
+                [m.get("val_compression_loss", 0) for m in self.val_losses],
+                label="Validation",
+            )
+            plt.title("Compression Loss")
         plt.xlabel("Epoch")
         plt.ylabel("Loss")
         plt.legend()
@@ -894,9 +910,9 @@ class Trainer:
             if self.scheduler is not None:
                 self.scheduler.step()
 
-            # Track losses
-            self.train_losses.append(train_metrics["train_loss"])
-            self.val_losses.append(val_metrics["val_loss"])
+            # Track losses - store complete metrics dictionaries
+            self.train_losses.append(train_metrics)
+            self.val_losses.append(val_metrics)
 
             # Calculate epoch time
             epoch_time = time.time() - epoch_start_time
@@ -954,11 +970,14 @@ class Trainer:
                 self.plot_training_curves()
                 self.plot_semantic_drift()
 
-                # Generate t-SNE visualization of latent space
+                # Generate t-SNE visualization of latent space only if we have enough samples
+                min_samples_for_tsne = 3  # Absolute minimum required for t-SNE
+                
                 if (
                     hasattr(self, "drift_tracking_graphs")
                     and self.drift_tracking_graphs
                     and self.use_graph
+                    and len(self.drift_tracking_graphs) >= min_samples_for_tsne
                 ):
                     # Generate visualization for graph embeddings
                     graph_batch = Batch.from_data_list(
@@ -972,14 +991,14 @@ class Trainer:
                         labels=[
                             state.role for state in self.drift_tracking_states[:30]
                         ],
-                        save_path=str(
+                        output_file=str(
                             self.experiment_dir
                             / "visualizations"
                             / f"tsne_latent_epoch_{epoch+1}.png"
                         ),
                         title=f"t-SNE of Graph Latent Space (Epoch {epoch+1})",
                     )
-                else:
+                elif len(self.drift_tracking_states) >= min_samples_for_tsne:
                     # Generate visualization for tensor embeddings
                     tensors = [
                         state.to_tensor() for state in self.drift_tracking_states[:30]
@@ -994,13 +1013,16 @@ class Trainer:
                         labels=[
                             state.role for state in self.drift_tracking_states[:30]
                         ],
-                        save_path=str(
+                        output_file=str(
                             self.experiment_dir
                             / "visualizations"
                             / f"tsne_latent_epoch_{epoch+1}.png"
                         ),
                         title=f"t-SNE of Latent Space (Epoch {epoch+1})",
                     )
+                else:
+                    if self.config.verbose:
+                        print(f"Skipping t-SNE visualization - not enough samples (need at least {min_samples_for_tsne})")
 
             # Early stopping
             if self.patience_counter >= self.config.training.patience:

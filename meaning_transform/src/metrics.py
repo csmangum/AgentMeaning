@@ -13,7 +13,7 @@ This module provides:
 import json
 import os
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -570,30 +570,57 @@ def compute_latent_space_metrics(
 
 
 def generate_t_sne_visualization(
-    latent_vectors: torch.Tensor,
-    labels: Optional[torch.Tensor] = None,
+    latent_vectors: Union[torch.Tensor, np.ndarray],
+    labels: Optional[List] = None,
     output_file: Optional[str] = None,
+    title: Optional[str] = "t-SNE Visualization of Latent Space",
 ) -> None:
     """
     Generate t-SNE visualization of latent space.
 
     Args:
-        latent_vectors: Encoded latent vectors
+        latent_vectors: Encoded latent vectors (either PyTorch tensor or numpy array)
         labels: Optional semantic labels for coloring points
         output_file: Path to save visualization
+        title: Title for the visualization plot
     """
-    # Convert to numpy for t-SNE
-    latent_np = latent_vectors.detach().cpu().numpy()
+    # Convert to numpy for t-SNE if it's a PyTorch tensor
+    if isinstance(latent_vectors, torch.Tensor):
+        latent_np = latent_vectors.detach().cpu().numpy()
+    else:
+        # Already a numpy array
+        latent_np = latent_vectors
 
+    # Get number of samples
+    n_samples = latent_np.shape[0]
+    
+    # Dynamically adjust perplexity based on number of samples
+    # Perplexity must be less than n_samples and should be much lower for small datasets
+    if n_samples <= 10:
+        perplexity = max(2, n_samples // 2)  # Very small dataset
+    else:
+        perplexity = min(30, n_samples // 3)  # Default is 30, but ensure it's < n_samples
+    
     # Apply t-SNE dimensionality reduction
-    tsne = TSNE(n_components=2, random_state=42)
-    latent_2d = tsne.fit_transform(latent_np)
+    try:
+        tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity)
+        latent_2d = tsne.fit_transform(latent_np)
+    except ValueError as e:
+        # Fallback to a very conservative perplexity if there's still an error
+        print(f"Warning: t-SNE failed with perplexity {perplexity}. Trying with perplexity=2. Error: {e}")
+        tsne = TSNE(n_components=2, random_state=42, perplexity=2)
+        latent_2d = tsne.fit_transform(latent_np)
 
     # Create visualization
     plt.figure(figsize=(10, 8))
 
     if labels is not None:
-        labels_np = labels.detach().cpu().numpy()
+        # Convert labels to numpy if they're tensors
+        if isinstance(labels, torch.Tensor):
+            labels_np = labels.detach().cpu().numpy()
+        else:
+            labels_np = np.array(labels)
+            
         unique_labels = np.unique(labels_np)
         for label in unique_labels:
             mask = labels_np == label
@@ -607,7 +634,7 @@ def generate_t_sne_visualization(
     else:
         plt.scatter(latent_2d[:, 0], latent_2d[:, 1], alpha=0.7)
 
-    plt.title("t-SNE Visualization of Latent Space")
+    plt.title(f"{title} (n={n_samples}, perplexity={perplexity})")
     plt.xlabel("t-SNE Dimension 1")
     plt.ylabel("t-SNE Dimension 2")
     plt.grid(True, alpha=0.3)

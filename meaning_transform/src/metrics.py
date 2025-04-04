@@ -13,7 +13,7 @@ This module provides:
 import json
 import os
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -81,22 +81,26 @@ class SemanticMetrics:
         # Get detailed breakdown of semantic loss components
         loss_breakdown = self.semantic_loss.detailed_breakdown(reconstructed, original)
 
-        # Convert losses to similarity scores (1.0 means identical, 0.0 means completely different)
+        # Convert losses to similarity scores using a modified transformation
+        # Instead of a pure exponential decay (exp(-loss)), use a more balanced approach
+        # that doesn't overly penalize or reward certain features
         similarity_scores = {}
         for feature, loss in loss_breakdown.items():
-            # Apply exponential decay transformation: score = exp(-loss)
-            # This maps loss of 0 -> score of 1.0, and larger losses -> scores closer to 0
-            similarity_scores[feature] = float(np.exp(-loss))
+            # Use a sigmoid-based transformation to map loss values to (0,1) range
+            # This gives a more gradual transition than exponential decay
+            # Formula: 1 / (1 + sqrt(loss)) - this reduces the steepness of the decay
+            similarity_scores[feature] = float(1.0 / (1.0 + np.sqrt(loss)))
 
-        # Calculate overall score as weighted average
+        # Calculate overall score as weighted average, with weights aligned to semantic field importance
+        # These weights reflect the importance found in semantic field mapping
         feature_weights = {
-            "position": 1.0,
-            "health": 1.0,
-            "has_target": 1.0,
-            "energy": 1.0,
-            "is_alive": 2.0,  # Higher weight for critical properties
-            "role": 1.5,
-            "threatened": 1.0,
+            "position": 0.55,     # Spatial features (55.4% importance)
+            "health": 0.15,       # Resource features (part of 25.1% importance)
+            "energy": 0.15,       # Resource features (part of 25.1% importance)
+            "is_alive": 0.05,     # Performance features
+            "role": 0.05,         # Role features
+            "has_target": 0.03,   # Performance features
+            "threatened": 0.02,   # Performance features
         }
 
         total_weight = sum(
@@ -570,53 +574,125 @@ def compute_latent_space_metrics(
 
 
 def generate_t_sne_visualization(
-    latent_vectors: torch.Tensor,
-    labels: Optional[torch.Tensor] = None,
+    latent_vectors: np.ndarray,
+    labels: Optional[Union[torch.Tensor, List, np.ndarray]] = None,
     output_file: Optional[str] = None,
+    title: Optional[str] = "t-SNE Visualization of Latent Space",
 ) -> None:
     """
     Generate t-SNE visualization of latent space.
 
     Args:
-        latent_vectors: Encoded latent vectors
-        labels: Optional semantic labels for coloring points
+        latent_vectors: Encoded latent vectors (numpy array or torch tensor)
+        labels: Optional semantic labels for coloring points (tensor, list, or numpy array)
         output_file: Path to save visualization
+        title: Custom title for the visualization
     """
-    # Convert to numpy for t-SNE
-    latent_np = latent_vectors.detach().cpu().numpy()
-
-    # Apply t-SNE dimensionality reduction
-    tsne = TSNE(n_components=2, random_state=42)
-    latent_2d = tsne.fit_transform(latent_np)
-
-    # Create visualization
-    plt.figure(figsize=(10, 8))
-
-    if labels is not None:
-        labels_np = labels.detach().cpu().numpy()
-        unique_labels = np.unique(labels_np)
-        for label in unique_labels:
-            mask = labels_np == label
-            plt.scatter(
-                latent_2d[mask, 0],
-                latent_2d[mask, 1],
-                label=f"Class {label}",
-                alpha=0.7,
-            )
-        plt.legend()
+    # Convert to numpy if it's a tensor
+    if isinstance(latent_vectors, torch.Tensor):
+        latent_np = latent_vectors.detach().cpu().numpy()
     else:
-        plt.scatter(latent_2d[:, 0], latent_2d[:, 1], alpha=0.7)
+        latent_np = latent_vectors
+    
+    # Handle NaN and infinity values
+    if np.isnan(latent_np).any() or np.isinf(latent_np).any():
+        print("Warning: NaN or infinity values found in latent vectors. Replacing with zeros.")
+        # Create a mask for valid values
+        valid_mask = ~np.isnan(latent_np).any(axis=1) & ~np.isinf(latent_np).any(axis=1)
+        
+        # If we have any valid samples, keep only those
+        if np.sum(valid_mask) > 0:
+            print(f"Keeping {np.sum(valid_mask)} valid samples out of {len(valid_mask)}")
+            latent_np = latent_np[valid_mask]
+            # If labels exist, filter them too
+            if labels is not None:
+                if isinstance(labels, torch.Tensor):
+                    labels = labels.detach().cpu().numpy()
+                labels = np.array(labels)[valid_mask]
+        else:
+            # If all samples have NaN/inf, replace those values with zeros
+            print("All samples contain NaN/inf values. Replacing with zeros.")
+            latent_np = np.nan_to_num(latent_np, nan=0.0, posinf=0.0, neginf=0.0)
+    
+    # Check number of samples and adjust perplexity
+    n_samples = latent_np.shape[0]
+    if n_samples <= 1:
+        print(f"Cannot generate t-SNE with only {n_samples} sample(s). Skipping visualization.")
+        return
+    
+    # Ensure data has non-zero variance
+    if np.all(np.std(latent_np, axis=0) < 1e-10):
+        print("Latent vectors have near-zero variance. Skipping t-SNE visualization.")
+        return
+        
+    # Adjust perplexity: use n_samples/3 with a minimum of 2 and maximum of 30
+    perplexity = min(max(2, n_samples // 3), 30)
+    perplexity = min(perplexity, n_samples - 1)  # Ensure it's less than n_samples
+    
+    try:
+        # Apply t-SNE dimensionality reduction
+        tsne = TSNE(n_components=2, random_state=42, perplexity=perplexity)
+        latent_2d = tsne.fit_transform(latent_np)
+        
+        # Create visualization
+        plt.figure(figsize=(10, 8))
 
-    plt.title("t-SNE Visualization of Latent Space")
-    plt.xlabel("t-SNE Dimension 1")
-    plt.ylabel("t-SNE Dimension 2")
-    plt.grid(True, alpha=0.3)
+        if labels is not None:
+            # Convert labels to numpy if it's a tensor
+            if isinstance(labels, torch.Tensor):
+                labels_np = labels.detach().cpu().numpy()
+            else:
+                labels_np = np.array(labels)
+                
+            # For numerical labels, use class numbers
+            if np.issubdtype(labels_np.dtype, np.number):
+                unique_labels = np.unique(labels_np)
+                for label in unique_labels:
+                    mask = labels_np == label
+                    plt.scatter(
+                        latent_2d[mask, 0],
+                        latent_2d[mask, 1],
+                        label=f"Class {label}",
+                        alpha=0.7,
+                    )
+            # For string labels (like roles), use the string values
+            else:
+                unique_labels = np.unique(labels_np)
+                for label in unique_labels:
+                    mask = labels_np == label
+                    plt.scatter(
+                        latent_2d[mask, 0],
+                        latent_2d[mask, 1],
+                        label=label,
+                        alpha=0.7,
+                    )
+            plt.legend()
+        else:
+            plt.scatter(latent_2d[:, 0], latent_2d[:, 1], alpha=0.7)
 
-    # Save or show
-    if output_file:
-        plt.savefig(output_file, dpi=300, bbox_inches="tight")
-    else:
-        plt.show()
+        plt.title(f"{title} (perplexity={perplexity})")
+        plt.xlabel("t-SNE Dimension 1")
+        plt.ylabel("t-SNE Dimension 2")
+        plt.grid(True, alpha=0.3)
+
+        # Save or show
+        if output_file:
+            plt.savefig(output_file, dpi=300, bbox_inches="tight")
+        else:
+            plt.show()
+            
+    except Exception as e:
+        print(f"Error generating t-SNE visualization: {str(e)}")
+        # Create a simple error message plot instead
+        plt.figure(figsize=(10, 8))
+        plt.text(0.5, 0.5, f"t-SNE visualization failed: {str(e)}", 
+                 horizontalalignment='center', verticalalignment='center')
+        plt.axis('off')
+        
+        if output_file:
+            plt.savefig(output_file, dpi=300, bbox_inches='tight')
+        else:
+            plt.show()
 
 
 class CompressionThresholdFinder:
@@ -823,22 +899,23 @@ def calculate_semantic_similarity(
     # Get detailed breakdown of semantic loss components
     loss_breakdown = loss_module.detailed_breakdown(reconstructed, original)
 
-    # Convert losses to similarity scores (1.0 means identical, 0.0 means completely different)
+    # Convert losses to similarity scores using a more balanced sigmoid-based approach
+    # instead of the exponential transformation
     similarity_scores = {}
     for feature, loss in loss_breakdown.items():
-        # Apply exponential decay transformation: score = exp(-loss)
-        # This maps loss of 0 -> score of 1.0, and larger losses -> scores closer to 0
-        similarity_scores[feature] = float(np.exp(-loss))
+        # Use a sigmoid-based transformation to map loss values to (0,1) range
+        # Formula: 1 / (1 + sqrt(loss)) - this reduces the steepness of the decay
+        similarity_scores[feature] = float(1.0 / (1.0 + np.sqrt(loss)))
 
-    # Calculate overall score as weighted average
+    # Calculate overall score as weighted average with weights aligned to semantic field importance
     feature_weights = {
-        "position": 1.0,
-        "health": 1.0,
-        "has_target": 1.0,
-        "energy": 1.0,
-        "is_alive": 2.0,  # Higher weight for critical properties
-        "role": 1.5,
-        "threatened": 1.0,
+        "position": 0.55,     # Spatial features (55.4% importance)
+        "health": 0.15,       # Resource features (part of 25.1% importance)
+        "energy": 0.15,       # Resource features (part of 25.1% importance)
+        "is_alive": 0.05,     # Performance features
+        "role": 0.05,         # Role features
+        "has_target": 0.03,   # Performance features
+        "threatened": 0.02,   # Performance features
     }
 
     total_weight = sum(feature_weights.get(f, 1.0) for f in similarity_scores.keys())

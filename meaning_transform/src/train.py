@@ -32,7 +32,7 @@ from .data import AgentState, AgentStateDataset
 from .graph_model import GraphVAELoss
 from .loss import CombinedLoss
 from .metrics import DriftTracker, generate_t_sne_visualization
-from .model import MeaningVAE
+from .models import MeaningVAE
 from .standardized_metrics import StandardizedMetrics
 
 
@@ -291,10 +291,13 @@ class Trainer:
         num_total_batches = (
             len(self.train_dataset.states) // self.config.training.batch_size
         )
+        if num_total_batches <= 0:
+            num_total_batches = 1  # Ensure at least one batch
 
         start_time = time.time()
 
-        while self.train_dataset._current_idx < len(self.train_dataset.states):
+        # Change from while loop to for loop with fixed iterations
+        for batch_idx in range(num_total_batches):
             # Get batch - either graph or tensor based on configuration
             if self.use_graph:
                 batch = self.train_dataset.get_graph_batch()
@@ -321,7 +324,7 @@ class Trainer:
                 # Standard tensor loss calculation
                 loss_results = self.loss_fn(results, batch)
 
-            loss = loss_results["total_loss"]
+            loss = loss_results["loss"]
 
             # Backward pass
             loss.backward()
@@ -347,13 +350,13 @@ class Trainer:
             num_batches += 1
 
             # Progress update
-            if self.config.verbose and num_batches % 10 == 0:
+            if self.config.verbose and batch_idx % 10 == 0:
                 elapsed = time.time() - start_time
-                progress = num_batches / num_total_batches
+                progress = (batch_idx + 1) / num_total_batches
                 remaining = elapsed / progress - elapsed if progress > 0 else 0
 
                 print(
-                    f"Batch {num_batches}/{num_total_batches} "
+                    f"Batch {batch_idx + 1}/{num_total_batches} "
                     f"[{progress:.0%}] - "
                     f"Loss: {loss.item():.4f} - "
                     f"Elapsed: {elapsed:.0f}s - "
@@ -396,8 +399,16 @@ class Trainer:
         # Reset dataset index
         self.val_dataset._current_idx = 0
 
+        # Calculate number of batches
+        num_total_batches = (
+            len(self.val_dataset.states) // self.config.training.batch_size
+        )
+        if num_total_batches <= 0:
+            num_total_batches = 1  # Ensure at least one batch
+
         with torch.no_grad():
-            while self.val_dataset._current_idx < len(self.val_dataset.states):
+            # Change from while loop to for loop with fixed iterations
+            for _ in range(num_total_batches):
                 # Get batch - either graph or tensor based on configuration
                 if self.use_graph:
                     batch = self.val_dataset.get_graph_batch()
@@ -423,7 +434,7 @@ class Trainer:
                     # Standard tensor loss calculation
                     loss_results = self.loss_fn(results, batch)
 
-                loss = loss_results["total_loss"]
+                loss = loss_results["loss"]
 
                 # Update metrics
                 total_loss += loss.item()
@@ -533,8 +544,10 @@ class Trainer:
             # Add to drift tracking history
             self.semantic_drift_history.append(drift_metrics)
             
-            # Log to drift tracker
-            self.drift_tracker.log_metrics(drift_metrics)
+            # Use log_iteration instead of log_metrics
+            current_epoch = getattr(self, 'current_epoch', 0)
+            compression_level = getattr(self.model, 'compression_level', 1.0)
+            self.drift_tracker.log_iteration(current_epoch, compression_level, originals, reconstructions)
             
             return drift_metrics
         
@@ -603,8 +616,10 @@ class Trainer:
             # Add to drift tracking history
             self.semantic_drift_history.append(drift_metrics)
             
-            # Log to drift tracker
-            self.drift_tracker.log_metrics(drift_metrics)
+            # Use log_iteration instead of log_metrics
+            current_epoch = getattr(self, 'current_epoch', 0)
+            compression_level = getattr(self.model, 'compression_level', 1.0)
+            self.drift_tracker.log_iteration(current_epoch, compression_level, original_tensors, reconstructed_tensors)
             
             return drift_metrics
             
@@ -848,6 +863,9 @@ class Trainer:
 
             print(f"Resuming from epoch {start_epoch}")
 
+        # Initialize current epoch
+        self.current_epoch = start_epoch
+
         # Print model summary
         total_params = sum(p.numel() for p in self.model.parameters())
         trainable_params = sum(
@@ -869,6 +887,9 @@ class Trainer:
 
         # Training loop
         for epoch in range(start_epoch, self.config.training.num_epochs):
+            # Update current epoch
+            self.current_epoch = epoch
+            
             epoch_start_time = time.time()
 
             # Train for one epoch
@@ -884,9 +905,9 @@ class Trainer:
             if self.scheduler is not None:
                 self.scheduler.step()
 
-            # Track losses
-            self.train_losses.append(train_metrics["train_loss"])
-            self.val_losses.append(val_metrics["val_loss"])
+            # Track losses - append the full metrics dictionaries
+            self.train_losses.append(train_metrics)
+            self.val_losses.append(val_metrics)
 
             # Calculate epoch time
             epoch_time = time.time() - epoch_start_time
@@ -919,11 +940,12 @@ class Trainer:
                     )
 
                 # Semantic drift metrics
-                current_drift = self.semantic_drift_history[-1]
-                print(
-                    f"  - Fidelity: {current_drift['fidelity']:.4f} - "
-                    f"Meaning Preservation: {current_drift['meaning_preservation']:.4f}"
-                )
+                if self.semantic_drift_history:
+                    current_drift = self.semantic_drift_history[-1]
+                    print(
+                        f"  - Fidelity: {current_drift.get('fidelity', 0.0):.4f} - "
+                        f"Preservation: {current_drift.get('preservation', 0.0):.4f}"
+                    )
 
             # Save model
             is_best = val_metrics["val_loss"] < self.best_val_loss
@@ -939,8 +961,9 @@ class Trainer:
             # Cleanup old checkpoints
             self._cleanup_checkpoints(epoch)
 
-            # Plot training curves
-            if (epoch + 1) % self.config.metrics.visualization_interval == 0:
+            # Plot training curves - use default value of 10 if visualization_interval is not defined
+            visualization_interval = getattr(self.config.metrics, "visualization_interval", 10)
+            if (epoch + 1) % visualization_interval == 0:
                 self.plot_training_curves()
                 self.plot_semantic_drift()
 
@@ -962,7 +985,7 @@ class Trainer:
                         labels=[
                             state.role for state in self.drift_tracking_states[:30]
                         ],
-                        save_path=str(
+                        output_file=str(
                             self.experiment_dir
                             / "visualizations"
                             / f"tsne_latent_epoch_{epoch+1}.png"
@@ -984,7 +1007,7 @@ class Trainer:
                         labels=[
                             state.role for state in self.drift_tracking_states[:30]
                         ],
-                        save_path=str(
+                        output_file=str(
                             self.experiment_dir
                             / "visualizations"
                             / f"tsne_latent_epoch_{epoch+1}.png"

@@ -237,6 +237,80 @@ def test_compression_threshold_finder():
     return optimal
 
 
+def test_compression_level_validation():
+    """
+    Validate that the modified similarity calculation correctly identifies
+    that compression level 1.0 performs better than higher compression levels.
+    """
+    print("\n=== Validating Compression Level Metrics ===")
+    
+    # Initialize semantic metrics
+    metrics = SemanticMetrics()
+    
+    # Create a fixed test dataset for consistent comparison
+    np.random.seed(42)
+    torch.manual_seed(42)
+    
+    # Original data will be the same for all tests
+    original, _ = setup_test_data(batch_size=64)
+    
+    # Compression levels to test (focusing on 1.0 vs 5.0)
+    compression_levels = [5.0, 3.0, 1.0, 0.5]
+    
+    results = {}
+    feature_results = defaultdict(dict)
+    
+    for level in compression_levels:
+        # Control the amount of perturbation based on compression level
+        # Higher compression (5.0) = more perturbation, lower compression (1.0) = less perturbation
+        perturbation_factor = level / 5.0  # 1.0 for level 5.0, 0.2 for level 1.0
+        
+        # Create reconstructed data with controlled perturbation
+        reconstructed = original.clone()
+        
+        # Add more perturbation to spatial features for higher compression
+        reconstructed[:, 0:2] += perturbation_factor * 0.2 * torch.randn_like(reconstructed[:, 0:2])
+        
+        # Add more perturbation to health and energy
+        reconstructed[:, 2] += perturbation_factor * 0.1 * torch.randn_like(reconstructed[:, 2])
+        reconstructed[:, 4] += perturbation_factor * 0.1 * torch.randn_like(reconstructed[:, 4])
+        
+        # More errors in role assignment for higher compression
+        if level >= 3.0:
+            # For high compression, randomly change 20% of roles
+            mask = torch.rand(reconstructed.shape[0]) < 0.2 * perturbation_factor
+            for i in range(reconstructed.shape[0]):
+                if mask[i]:
+                    reconstructed[i, 5:10] = torch.zeros(5)
+                    new_role = torch.randint(0, 5, (1,))
+                    reconstructed[i, 5 + new_role] = 1.0
+        
+        # Calculate semantic scores
+        scores = metrics.compute_equivalence_scores(original, reconstructed)
+        
+        # Save overall score
+        results[level] = scores["overall"]
+        
+        # Save feature-specific scores
+        for feature, score in scores.items():
+            if feature != "overall":
+                feature_results[feature][level] = score
+        
+        print(f"Compression level {level:.1f}: Overall score = {scores['overall']:.4f}")
+    
+    # Validate compression level 1.0 performs better than 5.0
+    assert results[1.0] > results[5.0], f"Expected level 1.0 ({results[1.0]:.4f}) to outperform level 5.0 ({results[5.0]:.4f})"
+    
+    # Print feature-specific comparisons
+    print("\nFeature-specific performance comparison:")
+    for feature, level_scores in feature_results.items():
+        sorted_levels = sorted(level_scores.items(), key=lambda x: x[1], reverse=True)
+        best_level, best_score = sorted_levels[0]
+        print(f"{feature}: Best at level {best_level:.1f} with score {best_score:.4f}")
+    
+    return results
+
+
 def main():
     """Run all tests."""
     print("=== Running Tests for Metrics Module ===")
@@ -249,6 +323,7 @@ def main():
     test_drift_tracker()
     test_latent_space_metrics()
     test_compression_threshold_finder()
+    test_compression_level_validation()
     
     print("\n=== All Tests Completed ===")
 

@@ -8,7 +8,7 @@ while preserving their semantic meaning across various transformations.
 __version__ = "0.1.0"
 
 from .src.data import AgentState
-from .src.model import Encoder, Decoder, EntropyBottleneck
+from .src.models import Encoder, Decoder, EntropyBottleneck
 from .src.knowledge_graph import AgentStateToGraph, KnowledgeGraphDataset
 from .src.graph_model import (
     GraphEncoder, GraphDecoder, VGAE, GraphCompressionModel, 

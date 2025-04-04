@@ -449,6 +449,7 @@ class AgentStateDataset:
         self.states = states or []
         self.batch_size = batch_size
         self.states_tensor = None
+        self._current_idx = 0  # Initialize current index position
         self._initialize_tensors()
 
     def _initialize_tensors(self):
@@ -467,12 +468,22 @@ class AgentStateDataset:
         return (self.states[idx].to_tensor(),)
 
     def get_batch(self) -> torch.Tensor:
-        """Get random batch of agent states as tensors."""
+        """Get a batch of agent states as tensors."""
         if self.states_tensor is None or len(self.states_tensor) == 0:
             raise ValueError("Dataset is empty")
 
-        indices = torch.randperm(len(self.states_tensor))[:self.batch_size]
-        return self.states_tensor[indices]
+        # Calculate end index for batch
+        end_idx = min(self._current_idx + self.batch_size, len(self.states_tensor))
+        
+        # Get sequential batch
+        batch = self.states_tensor[self._current_idx:end_idx]
+        
+        # Update current index
+        self._current_idx = end_idx
+        if self._current_idx >= len(self.states_tensor):
+            self._current_idx = 0
+        
+        return batch
 
     def save(self, file_path: str) -> None:
         """

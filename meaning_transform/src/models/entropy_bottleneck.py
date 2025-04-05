@@ -62,27 +62,24 @@ class EntropyBottleneck(CompressionBase):
         mu = mu + self.compress_mu
         log_scale = log_scale + self.compress_log_scale
 
-        # Apply compression level to both mu and log_scale for consistency
-        # Scale based on compression_level: higher level = more compression
-        mu_scaled = mu / self.compression_level
-        log_scale_adjusted = log_scale - torch.log(
+        # Scale compression based on compression_level - using original approach
+        log_scale = log_scale - torch.log(
             torch.tensor(self.compression_level, device=z.device)
         )
 
         # Add noise for quantization
         if self.training:
-            # Reparameterization trick during training
+            # Reparameterization trick during training - using original approach
             with set_temp_seed(self.seed):
-                epsilon = torch.randn_like(mu_scaled)
-            z_compressed = mu_scaled + torch.exp(log_scale_adjusted) * epsilon
+                epsilon = torch.randn_like(mu)
+            z_compressed = mu + torch.exp(log_scale) * epsilon
         else:
-            # Deterministic rounding during inference
-            # Round in scaled space for consistent quantization
-            z_compressed = torch.round(mu_scaled)
+            # Deterministic rounding during inference - using original approach
+            # Round first, then divide by compression_level
+            z_compressed = torch.round(mu) / self.compression_level
 
-        # Compute entropy loss (bits per dimension) with improved numerical stability
-        # Use log_scale.mul(2).exp() instead of log_scale.exp().pow(2) for stability
-        compression_loss = 0.5 * log_scale_adjusted.mul(2).exp() + 0.5 * torch.log(
+        # Compute entropy loss (bits per dimension) with original approach
+        compression_loss = 0.5 * torch.exp(log_scale).pow(2) + 0.5 * torch.log(
             2 * torch.tensor(np.pi, device=z.device)
         )
         compression_loss = compression_loss.mean()

@@ -1,10 +1,10 @@
 from typing import Any, Dict, Tuple, Union
-
 import numpy as np
 import torch
 import torch.nn as nn
 import torch_geometric
 from torch_geometric.data import Batch, Data
+from contextlib import nullcontext
 
 from meaning_transform.src.graph_model import VGAE, GraphDecoder, GraphEncoder
 from meaning_transform.src.knowledge_graph import AgentStateToGraph
@@ -147,14 +147,12 @@ class MeaningVAE(nn.Module, BaseModelIO):
         """
         std = torch.exp(0.5 * log_var)
 
-        if self.training:
-            with set_temp_seed(self.seed):
-                eps = torch.randn_like(std)
-            z = mu + eps * std
-            return z
-        else:
-            # During evaluation, just use the mean for deterministic results
-            return mu
+        # Always use reparameterization trick, even in evaluation mode
+        # This matches the behavior of the original implementation
+        with set_temp_seed(self.seed) if self.seed is not None else nullcontext():
+            eps = torch.randn_like(std)
+        z = mu + eps * std
+        return z
 
     def forward(self, x: Union[torch.Tensor, Data, Batch]) -> Dict[str, Any]:
         """
@@ -215,9 +213,7 @@ class MeaningVAE(nn.Module, BaseModelIO):
             kl_loss = -0.5 * torch.sum(
                 1 + results["log_var"] - results["mu"].pow(2) - results["log_var"].exp()
             )
-            results["kl_loss"] = kl_loss / results["mu"].size(
-                0
-            )  # Normalize by batch size
+            results["kl_loss"] = kl_loss / results["mu"].size(0)  # Normalize by batch size
 
             # Apply compression if enabled
             if self.compression is not None:
@@ -239,8 +235,10 @@ class MeaningVAE(nn.Module, BaseModelIO):
                     decoded_features = self.graph_decoder(z_quantized)
                     results["reconstruction"] = decoded_features
             else:
-                # No compression, use original reconstruction
-                results["reconstruction"] = graph_results["node_features"]
+                # No compression, but still use graph_decoder for consistency
+                # This matches the original implementation's flow
+                decoded_features = self.graph_decoder(results["z"])
+                results["reconstruction"] = decoded_features
 
             return results
 
@@ -249,7 +247,7 @@ class MeaningVAE(nn.Module, BaseModelIO):
         results["mu"] = mu
         results["log_var"] = log_var
 
-        # Calculate KL loss
+        # Calculate KL loss - normalize by batch size as in original implementation
         kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
         results["kl_loss"] = kl_loss / mu.size(0)  # Normalize by batch size
 

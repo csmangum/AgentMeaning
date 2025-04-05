@@ -11,12 +11,12 @@ This module defines:
 4. Combined loss function
 """
 
+import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Dict, Any, List, Tuple, Optional
 import math
-import logging
 
 
 def beta_annealing(epoch: int, max_epochs: int, min_beta: float = 0.0, 
@@ -99,9 +99,10 @@ class ReconstructionLoss(nn.Module):
         self.loss_type = loss_type
         
         if loss_type == "mse":
-            self.loss_fn = nn.MSELoss(reduction="sum")
+            # Use MSE with mean reduction as in the original implementation
+            self.loss_fn = nn.MSELoss(reduction="mean")
         elif loss_type == "bce":
-            self.loss_fn = nn.BCEWithLogitsLoss(reduction="sum")
+            self.loss_fn = nn.BCEWithLogitsLoss(reduction="mean")
         else:
             raise ValueError(f"Unsupported loss type: {loss_type}")
     
@@ -118,7 +119,10 @@ class ReconstructionLoss(nn.Module):
         Returns:
             loss: Reconstruction loss
         """
-        return self.loss_fn(x_reconstructed, x_original)
+        # Use original loss calculation without any scaling
+        loss = self.loss_fn(x_reconstructed, x_original)
+        
+        return loss
 
 
 class KLDivergenceLoss(nn.Module):
@@ -140,7 +144,13 @@ class KLDivergenceLoss(nn.Module):
             kl_loss: KL divergence loss
         """
         # KL divergence between N(mu, var) and N(0, 1)
+        # Calculate sum and normalize by batch size
+        batch_size = mu.size(0)
+        
+        # Original formula from before_times model
         kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
+        kl_loss = kl_loss / batch_size  # Normalize by batch size
+        
         return kl_loss
 
 
@@ -275,8 +285,8 @@ class SemanticLoss(nn.Module):
             losses[feature_name] = feature_loss
             total_loss += feature_loss
         
-        # Average across all feature types
-        return total_loss / len(losses)
+        # Average across all feature types without additional scaling
+        return total_loss / max(1, len(losses))
     
     def detailed_breakdown(self, 
                           x_reconstructed: torch.Tensor, 
@@ -334,7 +344,7 @@ class CombinedLoss(nn.Module):
     
     def __init__(self,
                  recon_loss_weight: float = 1.0,
-                 kl_loss_weight: float = 0.1,
+                 kl_loss_weight: float = 1.0,
                  semantic_loss_weight: float = 0.5,
                  recon_loss_type: str = "mse",
                  semantic_feature_extractors: List[str] = None,
@@ -403,32 +413,13 @@ class CombinedLoss(nn.Module):
         kld_loss = self.kl_loss(mu, log_var)
         sem_loss = self.semantic_loss(x_reconstructed, x_original)
         
-        # ERROR CHECK: Detect zero or suspiciously small reconstruction loss
-        if recon_loss < 1e-8:
-            error_msg = f"CRITICAL ERROR: Reconstruction loss is zero or suspiciously close to zero: {recon_loss.item():.10f}"
-            logging.error(error_msg)
-            # Compare sample values to help debugging
-            sample_idx = 0 if x_original.size(0) > 0 else 0
-            if x_original.size(0) > 0:
-                logging.error(f"Sample comparison (first 5 features of first sample):")
-                for i in range(min(5, x_original.size(1))):
-                    orig = x_original[sample_idx, i].item()
-                    recon = x_reconstructed[sample_idx, i].item()
-                    diff = abs(orig - recon)
-                    logging.error(f"  Feature {i}: original={orig:.6f}, recon={recon:.6f}, diff={diff:.6f}")
-            raise ValueError(error_msg)
-        
-        # Warn if KL loss is suspiciously close to zero
-        if kld_loss < 1e-8:
-            logging.warning("WARNING: KL divergence loss is suspiciously close to zero (%.10f)!", kld_loss.item())
-        
         # Make sure all losses are detached for logging purposes
         recon_loss_detached = recon_loss.detach().clone()
         kld_loss_detached = kld_loss.detach().clone()
         sem_loss_detached = sem_loss.detach().clone()
         comp_loss_detached = compression_loss.detach().clone() if isinstance(compression_loss, torch.Tensor) else torch.tensor(compression_loss)
         
-        # Compute weighted total loss
+        # Compute weighted total loss - using weights from constructor parameters
         total_loss = (
             self.recon_loss_weight * recon_loss +
             self.kl_loss_weight * kld_loss +

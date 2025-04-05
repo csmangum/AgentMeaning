@@ -79,7 +79,6 @@ class AdaptiveEntropyBottleneck(CompressionBase):
             )
         
         # Check if input is already compressed by examining statistical properties
-        # Compressed values typically have a specific variance pattern after quantization
         if not self.training:
             # In evaluation mode, check if variance in fractional parts is very low,
             # indicating already quantized values
@@ -97,16 +96,20 @@ class AdaptiveEntropyBottleneck(CompressionBase):
         # Apply compression in the effective space
         mu = z_down + self.compress_mu
         log_scale = self.compress_log_scale.clone()
-
+        
+        # Scale log_scale based on compression_level (as in original implementation)
+        log_scale = log_scale - torch.log(torch.tensor(self.compression_level, device=z.device))
+        
         # Add noise for quantization in the effective space
         if self.training:
-            # Reparameterization trick during training
+            # Reparameterization trick during training - ORIGINAL implementation approach
             with set_temp_seed(self.seed):
                 epsilon = torch.randn_like(mu)
             z_compressed_effective = mu + torch.exp(log_scale) * epsilon
         else:
-            # Deterministic rounding during inference
-            z_compressed_effective = torch.round(mu)
+            # Deterministic rounding during inference - ORIGINAL implementation approach
+            # Round first, then divide by compression_level
+            z_compressed_effective = torch.round(mu) / self.compression_level
 
         # Project back up to full latent space
         projected = self.proj_up(z_compressed_effective)
@@ -115,8 +118,8 @@ class AdaptiveEntropyBottleneck(CompressionBase):
         # Use mu_full directly as the compressed representation
         z_compressed = mu_full
 
-        # Compute entropy loss (bits per dimension) with improved numerical stability
-        compression_loss = 0.5 * log_scale.mul(2).exp() + 0.5 * torch.log(
+        # Compute entropy loss (bits per dimension) with original approach for consistency
+        compression_loss = 0.5 * torch.exp(log_scale).pow(2) + 0.5 * torch.log(
             2 * torch.tensor(np.pi, device=z.device)
         )
         compression_loss = compression_loss.mean()

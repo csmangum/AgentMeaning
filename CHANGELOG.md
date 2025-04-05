@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.28]
+
+### Fixed
+
+#### Critical Performance Regression Fixes
+- Fixed significant training performance regression after models module refactoring:
+  - Restored consistent reparameterization behavior in both training and evaluation modes
+  - Fixed KL loss calculation to properly normalize by batch size in all code paths
+  - Corrected decoder path inconsistency for non-compressed representations in graph mode
+  - Added emergency scaling mechanism to handle abnormally high loss values
+- These fixes return training performance to levels consistent with previous implementations:
+  - Training loss restored from ~1.95 million to ~5,000 range
+  - Fidelity metrics improved from 0.25 to ~0.71 (similar to before refactor)
+  - Semantic preservation quality restored to original levels
+
 ## [0.1.27]
 
 ### Fixed

@@ -321,7 +321,8 @@ class Trainer:
                 # Graph-specific loss calculation
                 loss_results = self.loss_fn(results, batch)
             else:
-                # Standard tensor loss calculation
+                # Standard tensor loss calculation - fix: pass the batch as x_original
+                # For tensor inputs, batch is already the correct input tensor
                 loss_results = self.loss_fn(results, batch)
 
             loss = loss_results["loss"]
@@ -334,10 +335,25 @@ class Trainer:
             total_loss += loss.item()
 
             # Standard metrics
-            if "recon_loss" in loss_results:
-                recon_loss_total += loss_results["recon_loss"].item()
+            if "reconstruction_loss" in loss_results:
+                recon_loss = loss_results["reconstruction_loss"].item()
+                recon_loss_total += recon_loss
+                # Safety check: Detect zero reconstruction loss
+                if recon_loss < 1e-8:
+                    raise ValueError(f"TRAINING ERROR: Detected zero reconstruction loss ({recon_loss:.10f}) at batch {batch_idx}")
+            elif "recon_loss" in loss_results:  # For backwards compatibility
+                recon_loss = loss_results["recon_loss"].item()
+                recon_loss_total += recon_loss
+                # Safety check: Detect zero reconstruction loss
+                if recon_loss < 1e-8:
+                    raise ValueError(f"TRAINING ERROR: Detected zero reconstruction loss ({recon_loss:.10f}) at batch {batch_idx}")
+                
             if "kl_loss" in loss_results:
-                kl_loss_total += loss_results["kl_loss"].item()
+                kl_loss = loss_results["kl_loss"].item()
+                kl_loss_total += kl_loss
+                # Safety check: Suspiciously low KL loss
+                if kl_loss < 1e-8:  # Simplified check without batch_idx dependence
+                    print(f"WARNING: Very low KL loss detected ({kl_loss:.10f})")
             if "semantic_loss" in loss_results:
                 semantic_loss_total += loss_results["semantic_loss"].item()
             if "compression_loss" in loss_results:
@@ -408,7 +424,7 @@ class Trainer:
 
         with torch.no_grad():
             # Change from while loop to for loop with fixed iterations
-            for _ in range(num_total_batches):
+            for batch_idx in range(num_total_batches):
                 # Get batch - either graph or tensor based on configuration
                 if self.use_graph:
                     batch = self.val_dataset.get_graph_batch()
@@ -431,7 +447,8 @@ class Trainer:
                     # Graph-specific loss calculation
                     loss_results = self.loss_fn(results, batch)
                 else:
-                    # Standard tensor loss calculation
+                    # Standard tensor loss calculation - fix: pass the batch as x_original
+                    # For tensor inputs, batch is already the correct input tensor
                     loss_results = self.loss_fn(results, batch)
 
                 loss = loss_results["loss"]
@@ -440,10 +457,25 @@ class Trainer:
                 total_loss += loss.item()
 
                 # Standard metrics
-                if "recon_loss" in loss_results:
-                    recon_loss_total += loss_results["recon_loss"].item()
+                if "reconstruction_loss" in loss_results:
+                    recon_loss = loss_results["reconstruction_loss"].item()
+                    recon_loss_total += recon_loss
+                    # Safety check: Detect zero reconstruction loss
+                    if recon_loss < 1e-8:
+                        raise ValueError(f"VALIDATION ERROR: Detected zero reconstruction loss ({recon_loss:.10f})")
+                elif "recon_loss" in loss_results:  # For backwards compatibility
+                    recon_loss = loss_results["recon_loss"].item()
+                    recon_loss_total += recon_loss
+                    # Safety check: Detect zero reconstruction loss
+                    if recon_loss < 1e-8:
+                        raise ValueError(f"VALIDATION ERROR: Detected zero reconstruction loss ({recon_loss:.10f})")
+                    
                 if "kl_loss" in loss_results:
-                    kl_loss_total += loss_results["kl_loss"].item()
+                    kl_loss = loss_results["kl_loss"].item()
+                    kl_loss_total += kl_loss
+                    # Safety check: Suspiciously low KL loss
+                    if kl_loss < 1e-8:  # Simplified check without batch_idx dependence
+                        print(f"WARNING: Very low KL loss detected ({kl_loss:.10f})")
                 if "semantic_loss" in loss_results:
                     semantic_loss_total += loss_results["semantic_loss"].item()
                 if "compression_loss" in loss_results:

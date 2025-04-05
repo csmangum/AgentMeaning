@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from typing import Dict, Any, List, Tuple, Optional
 import math
+import logging
 
 
 def beta_annealing(epoch: int, max_epochs: int, min_beta: float = 0.0, 
@@ -373,16 +374,53 @@ class CombinedLoss(nn.Module):
         Returns:
             loss_dict: Dictionary of loss components and total loss
         """
+        # Validate inputs
+        if not isinstance(model_output, dict):
+            raise TypeError(f"Expected model_output to be a dict, got {type(model_output)}")
+        
+        if "reconstruction" not in model_output:
+            raise ValueError("model_output missing 'reconstruction' key")
+        if "mu" not in model_output:
+            raise ValueError("model_output missing 'mu' key")
+        if "log_var" not in model_output:
+            raise ValueError("model_output missing 'log_var' key")
+            
+        if not isinstance(x_original, torch.Tensor):
+            raise TypeError(f"Expected x_original to be a tensor, got {type(x_original)}")
+        
         # Extract values from model output
         x_reconstructed = model_output["reconstruction"]
         mu = model_output["mu"]
         log_var = model_output["log_var"]
         compression_loss = model_output.get("compression_loss", torch.tensor(0.0))  # Ensure tensor type
         
+        # Validate tensor shapes match
+        if x_reconstructed.shape != x_original.shape:
+            raise ValueError(f"Shape mismatch: reconstruction shape {x_reconstructed.shape} != original shape {x_original.shape}")
+        
         # Compute individual loss components
         recon_loss = self.recon_loss(x_reconstructed, x_original)
         kld_loss = self.kl_loss(mu, log_var)
         sem_loss = self.semantic_loss(x_reconstructed, x_original)
+        
+        # ERROR CHECK: Detect zero or suspiciously small reconstruction loss
+        if recon_loss < 1e-8:
+            error_msg = f"CRITICAL ERROR: Reconstruction loss is zero or suspiciously close to zero: {recon_loss.item():.10f}"
+            logging.error(error_msg)
+            # Compare sample values to help debugging
+            sample_idx = 0 if x_original.size(0) > 0 else 0
+            if x_original.size(0) > 0:
+                logging.error(f"Sample comparison (first 5 features of first sample):")
+                for i in range(min(5, x_original.size(1))):
+                    orig = x_original[sample_idx, i].item()
+                    recon = x_reconstructed[sample_idx, i].item()
+                    diff = abs(orig - recon)
+                    logging.error(f"  Feature {i}: original={orig:.6f}, recon={recon:.6f}, diff={diff:.6f}")
+            raise ValueError(error_msg)
+        
+        # Warn if KL loss is suspiciously close to zero
+        if kld_loss < 1e-8:
+            logging.warning("WARNING: KL divergence loss is suspiciously close to zero (%.10f)!", kld_loss.item())
         
         # Make sure all losses are detached for logging purposes
         recon_loss_detached = recon_loss.detach().clone()

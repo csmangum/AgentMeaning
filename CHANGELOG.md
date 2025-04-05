@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.27]
+
+### Fixed
+
+#### Critical Loss Function Fixes
+- Fixed zero reconstruction loss issue that emerged after models module refactoring
+- Added comprehensive validation checks in CombinedLoss to prevent zero reconstruction loss:
+  - Added strict input validation to ensure model_output contains required keys
+  - Added shape validation to ensure reconstruction and original tensors match
+  - Implemented error detection and detailed debugging for near-zero reconstruction loss
+  - Added detailed sample value comparison for easier debugging
+- Enhanced training loop with robust error checks:
+  - Added safety checks to detect and immediately fail on zero reconstruction loss
+  - Updated loss parameter access to correctly identify reconstruction_loss vs recon_loss key
+  - Added warnings for suspiciously low KL divergence loss
+  - Improved error messages with detailed diagnostics
+- Added comprehensive logging to detect and report loss calculation issues
+
 ## [0.1.26]
 
 ### Added
